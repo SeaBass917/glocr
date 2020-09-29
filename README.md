@@ -1,9 +1,9 @@
 # glocr
 
 ## Requirements
- - (zlib)[https://zlib.net/]
- - (libpng)[http://www.libpng.org/pub/png/libpng.html]
- - (png++)[https://www.nongnu.org/pngpp/]
+(zlib)[https://zlib.net/]
+(libpng)[http://www.libpng.org/pub/png/libpng.html]
+(png++)[https://www.nongnu.org/pngpp/]
 
 ## Simple Example Setup
  - In linux env
