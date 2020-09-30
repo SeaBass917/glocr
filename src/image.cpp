@@ -1,6 +1,100 @@
 #include "image.h"
 
-// Function to create Gaussian filter
+void horizontalProjectionHistogram(png::image<png::gray_pixel> const &img, double* hist, bool normalize){
+    if(hist){
+
+        // Img info
+        unsigned height = img.get_height();
+        unsigned width = img.get_width();
+
+        unsigned histLeng = *(&hist + 1) - hist;
+        if(height <= histLeng){
+
+            // For normilization
+            unsigned totalSum = 0;
+
+            // For each row count pixels that are below the threshold
+            unsigned thresh = 64;
+            for(unsigned r = 0; r < height; r++){
+
+                // Read row once
+                const std::vector<png::byte, std::allocator<png::byte>> row = img[r];
+
+                unsigned sum = 0;
+                for(unsigned c = 0; c < width; c++){
+                    if(row[c] < thresh){
+                        sum++;
+                        totalSum++;
+                    }
+                }
+
+                hist[r] = sum;
+            }
+
+            // Normalize the histogram if requested
+            if(normalize){
+                double normScale = 1.0 / (double)totalSum;
+                for(unsigned r = 0; r < height; r++)
+                    hist[r] *= normScale;
+            }
+        }
+        else{
+            std::cout << "\tERROR! horizontalProjectionHistogram() recieved a histogram smaller["<<histLeng<<"] than image height["<<height<<"]. Failed to make a histogram." << std::endl;
+            std::cout << sizeof(hist) << std::endl;
+            std::cout << sizeof(hist[0]) << std::endl;
+        }
+    }
+    else{
+        std::cout << "\tERROR! horizontalProjectionHistogram() recieved a null histogram. Failed to make a histogram." << std::endl;
+    }
+}
+
+void verticalProjectionHistogram(png::image<png::gray_pixel> const &img, double* hist, bool normalize){
+    if(hist){
+
+        // Img info
+        unsigned height = img.get_height();
+        unsigned width = img.get_width();
+
+        unsigned histLeng = sizeof(hist)/sizeof(hist[0]);
+        if(width <= histLeng){
+
+
+            // For normilization
+            unsigned totalSum = 0;
+
+            // For each col count pixels that are below the threshold
+            unsigned thresh = 127;
+            for(unsigned c = 0; c < width; c++){
+
+                unsigned sum = 0;
+                for(unsigned r = 0; r < height; r++){
+                    if(img[r][c] < thresh){
+                        sum++;
+                        totalSum++;
+                    }
+                }
+
+                hist[c] = sum;
+            }
+
+            // Normalize the histogram if requested
+            if(normalize){
+                double normScale = 1.0 / (double)totalSum;
+                for(unsigned r = 0; r < height; r++)
+                    hist[r] *= normScale;
+            }
+        }
+        else{
+            std::cout << "\tERROR! verticalProjectionHistogram() recieved a histogram smaller["<<histLeng<<"] than image width["<<width<<"]. Failed to make a histogram." << std::endl;
+        }
+    }
+    else{
+        std::cout << "\tERROR! verticalProjectionHistogram() recieved a null histogram. Failed to make a histogram." << std::endl;
+    }
+}
+
+// Function to create Gaussian kernel on length n
 template<class T>
 T** gaussiankernel(unsigned const masklength, T const sigma){
 
@@ -42,6 +136,7 @@ T** gaussiankernel(unsigned const masklength, T const sigma){
     return kernel;
 } 
 
+// Perform a 2d convolution on an image object
 template<typename T>
 png::image<png::rgb_pixel> convd2D(png::image<png::rgb_pixel> &image, unsigned const maskHeight, unsigned const maskWidth, T** kernel){
 
@@ -146,7 +241,7 @@ void drawASmile(char const* addrOut){
 
     // Gaussian blur
     unsigned const masklength = 25u;
-    float const sigma = 14.0f;
+    float const sigma = 54.0f;
     
     // Gaussian kernel
     float** gKernel = gaussiankernel<float>(masklength, sigma);
