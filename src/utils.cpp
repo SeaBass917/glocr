@@ -1,6 +1,7 @@
 #include "utils.h"
 
 #include <string>
+#include <iostream>
 
 char const* getPathNoExtension(char const* path){
     if(!fs::is_directory(path)){
@@ -64,4 +65,48 @@ std::string getFileExtension(std::string sPath){
         if(0 <= i && i+1 < sFilename.length()) return sFilename.substr(i+1).c_str();
     }
     return "";
+}
+
+std::string toLower(std::string s){
+    unsigned len = s.length();
+    char* cs = (char*)malloc(sizeof(char)*len);
+    if(cs){
+        for(unsigned i = 0; i < len; i++){
+            cs[i] = std::tolower(s[i]);
+        }
+
+        std::string sLower(cs);
+        free(cs);
+        return sLower;
+    }
+    else{
+        std::cerr << "ERROR! Failed to allocate memory for toLower()." << std::endl;
+        throw std::exception();
+    }
+}
+
+unsigned median(unsigned* a, unsigned len){
+    std::sort(a, a+len);
+    unsigned iHalf = len / 2;
+    return a[iHalf];
+}
+int median(int* a, unsigned len){
+    std::sort(a, a+len);
+    unsigned iHalf = len / 2;
+    return a[iHalf];
+}
+float median(float* a, unsigned len){
+    std::sort(a, a+len);
+    unsigned iHalf = len / 2;
+    return a[iHalf];
+}
+double median(double* a, unsigned len){
+    std::sort(a, a+len);
+    unsigned iHalf = len / 2;
+    return a[iHalf];
+}
+char median(char* a, unsigned len){
+    std::sort(a, a+len);
+    unsigned iHalf = len / 2;
+    return a[iHalf];
 }

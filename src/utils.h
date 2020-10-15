@@ -42,4 +42,14 @@ std::string getPathNoExtension(std::string path);
 char const* getFileExtension(char const* path);
 std::string getFileExtension(std::string path);
 
+// Converts the string to lowercase
+std::string toLower(std::string s);
+
+// Returns the median value of the given list
+unsigned median(unsigned* a, unsigned len);
+int median(int* a, unsigned len);
+float median(float* a, unsigned len);
+double median(double* a, unsigned len);
+char median(char* a, unsigned len);
+
 #endif
