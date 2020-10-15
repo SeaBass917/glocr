@@ -1,5 +1,119 @@
 #include "image.h"
 
+template<typename T>
+png::image<T> loadPNG(char const* addr){
+    png::image<T> img(addr);
+    return img;
+}
+
+template<typename T>
+void writePNG(png::image<T> const &img, char const* addr){
+    img.write(addr);
+}
+
+png::image<png::gray_pixel> segmentImage(png::image<png::gray_pixel> const &imgSrc){
+
+    // Image dimensions
+    unsigned height = imgSrc.get_height();
+    unsigned width = imgSrc.get_width();
+    unsigned T = 180;
+
+    // Create and return the segmented image
+    png::image< png::gray_pixel > imgSeg(width, height);
+    for(unsigned y = 0; y < height; y++){
+        for(unsigned x = 0; x < width; x++){
+            if(T < imgSrc[y][x]) imgSeg[y][x] = 255;
+            else imgSeg[y][x] = 0;
+        }   
+    }
+
+    return imgSeg;
+}
+
+png::image<png::gray_pixel> segmentImageKittler(png::image<png::gray_pixel> const &imgSrc){
+
+    // Image dimensions
+    unsigned height = imgSrc.get_height();
+    unsigned width = imgSrc.get_width();
+    unsigned numPixels = height * width;
+
+    // Determine the threshold for segmenting the image
+    // Using Kittler's Method
+
+    // Generate grayscale histogram from image source
+    double hist[256] = {0};
+    for(unsigned y = 0; y < height; y++){
+        for(unsigned x = 0; x < width; x++){
+            hist[ imgSrc[y][x] ]++;
+        }
+    }
+
+    // Normalize the histogram
+    for(unsigned i = 0; i < 256; i++){
+        hist[i] /= numPixels;
+    }
+
+    // Compute the error for each threshold
+    double errMin = std::numeric_limits<double>::max();
+    unsigned T = 0;
+    double errConst = 0.5+0.5*log(2.0*M_PI); // Const used in error calculations
+    for(unsigned t = 0; t < 256; t++){
+        double q1 = 0;
+        for(unsigned i = 0; i <= t; i++){
+            q1 += hist[i];
+        }
+
+        double q2 = 1.0 - q1;
+
+        double m1 = 0;
+        for(unsigned i = 0; i <= t; i++){
+            m1 += i * hist[i] / q1;
+        }
+
+        double m2 = 0;
+        for(unsigned i = t+1; i < 256; i++){
+            m2 += i * hist[i] / q1;
+        }
+
+        double v1 = 0;
+        double diff;
+        for(unsigned i = 0; i <= t; i++){
+            diff = i - m1;
+            v1 += diff * diff * hist[i] / q1;
+        }
+
+        double v2 = 0;
+        for(unsigned i = t+1; i < 256; i++){
+            diff = i - m2;
+            v2 += diff * diff * hist[i] / q2;
+        }
+
+        double err = errConst - q1*log(q1) - q2*log(q2) + q1*log(v1)/2.0 + q2*log(v2)/2.0;
+
+        if(err < errMin){
+            errMin = err;
+            T = t;
+        }
+    }
+
+    std::cout << "Threshold: " << T << std::endl;
+
+    // Create and return the segmented image
+    png::image< png::gray_pixel > imgSeg(width, height);
+    for(unsigned y = 0; y < height; y++){
+        for(unsigned x = 0; x < width; x++){
+            if(T < imgSrc[y][x]) imgSeg[y][x] = 0;
+            else imgSeg[y][x] = 255;
+        }   
+    }
+
+    return imgSeg;
+}
+
+// bool** createEdgeMap(png::image<png::gray_pixel> const &imgSrc, float threshold){
+
+// }
+
 void horizontalProjectionHistogram(png::image<png::gray_pixel> const &img, double* hist, bool normalize){
     if(hist){
 
@@ -56,7 +170,7 @@ void verticalProjectionHistogram(png::image<png::gray_pixel> const &img, double*
         unsigned height = img.get_height();
         unsigned width = img.get_width();
 
-        unsigned histLeng = sizeof(hist)/sizeof(hist[0]);
+        unsigned histLeng = *(&hist + 1) - hist;
         if(width <= histLeng){
 
 
@@ -81,7 +195,7 @@ void verticalProjectionHistogram(png::image<png::gray_pixel> const &img, double*
             // Normalize the histogram if requested
             if(normalize){
                 double normScale = 1.0 / (double)totalSum;
-                for(unsigned r = 0; r < height; r++)
+                for(unsigned r = 0; r < width; r++)
                     hist[r] *= normScale;
             }
         }
@@ -140,7 +254,7 @@ T** gaussiankernel(unsigned const masklength, T const sigma){
 template<typename T>
 png::image<png::rgb_pixel> convd2D(png::image<png::rgb_pixel> &image, unsigned const maskHeight, unsigned const maskWidth, T** kernel){
 
-    // Image dimm
+    // Image dimensions
     unsigned height = image.get_height();
     unsigned width = image.get_width();
 
@@ -209,6 +323,7 @@ png::image<png::rgb_pixel> convd2D(png::image<png::rgb_pixel> &image, unsigned c
     return imageTgt;
 }
 
+// Draws a smile image to the address specified
 void drawASmile(char const* addrOut){
     
     unsigned const srcRes = 8;
