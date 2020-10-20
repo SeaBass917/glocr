@@ -73,14 +73,36 @@ void drawEdgeMap(bool** edgeMap, unsigned height, unsigned width, char const* pa
 void drawEdgeMap(bool** edgeMap, unsigned height, unsigned width, std::string pathSmileEdge);
 
 // Create a histogram of the horizontal projection of a grayscale image
-void horizontalProjectionHistogram(png::image<png::gray_pixel> const &img, double* hist, bool normalize);
+void horizontalProjectionHistogram(png::image<png::gray_pixel> const &img, unsigned* hist, unsigned thresh = 64);
+
+// Create a histogram of the horizontal projection of a grayscale image (normalizes the output)
+void horizontalProjectionHistogramNorm(png::image<png::gray_pixel> const &img, double* hist, unsigned thresh = 64);
 
 // Create a histogram of the vertical projection of a grayscale image
-void verticalProjectionHistogram(png::image<png::gray_pixel> const &img, double* hist, bool normalize);
+void verticalProjectionHistogram(png::image<png::gray_pixel> const &img, unsigned* hist, unsigned thresh = 64);
+
+// Create a histogram of the vertical projection of a grayscale image (normalizes the output)
+void verticalProjectionHistogramNorm(png::image<png::gray_pixel> const &img, double* hist, unsigned thresh = 64);
 
 // -----------------
 // Image processing
 // -----------------
+
+// Find the yMin and yMax values for the handwritten part of an IAM dataset text document
+// NOTE: Cuttoff is made at the line segments, there are 2 on the top and one on the bottom
+//       The text will be located between the top 2 and bottom
+//           -------------------
+//           Computer text
+//           -------------------
+//           *Handwritten text*
+//           *Handwritten text*
+//           *Handwritten text*
+//           -------------------
+tuple4<unsigned> findTextBounds(png::image<png::gray_pixel> const &img);
+
+// Cleans a document from the IAM dataset
+// - Crops out everything but the centered text
+png::image<png::gray_pixel> preProcessDocument(png::image<png::gray_pixel> const &img);
 
 // Segment the image into black and white using a fixed threshold
 png::image<png::gray_pixel> segmentImageThreshold(png::image<png::gray_pixel> const &imgSrc, unsigned T);

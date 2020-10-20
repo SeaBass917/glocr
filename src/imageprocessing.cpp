@@ -311,48 +311,27 @@ void drawEdgeMap(bool** edgeMap, unsigned height, unsigned width, std::string pa
     img.write(pathSmileEdge);
 }
 
-void horizontalProjectionHistogram(png::image<png::gray_pixel> const &img, double* hist, bool normalize){
+void horizontalProjectionHistogram(png::image<png::gray_pixel> const &img, unsigned* hist, unsigned thresh){
     if(hist){
 
         // Img info
         unsigned height = img.get_height();
         unsigned width = img.get_width();
 
-        unsigned histLeng = *(&hist + 1) - hist;
-        if(height <= histLeng){
+        // For each row count pixels that are below the threshold
+        for(unsigned r = 0; r < height; r++){
 
-            // For normilization
-            unsigned totalSum = 0;
+            // Read row once
+            const std::vector<png::byte, std::allocator<png::byte>> row = img[r];
 
-            // For each row count pixels that are below the threshold
-            unsigned thresh = 64;
-            for(unsigned r = 0; r < height; r++){
-
-                // Read row once
-                const std::vector<png::byte, std::allocator<png::byte>> row = img[r];
-
-                unsigned sum = 0;
-                for(unsigned c = 0; c < width; c++){
-                    if(row[c] < thresh){
-                        sum++;
-                        totalSum++;
-                    }
+            unsigned sum = 0;
+            for(unsigned c = 0; c < width; c++){
+                if(row[c] < thresh){
+                    sum++;
                 }
-
-                hist[r] = sum;
             }
 
-            // Normalize the histogram if requested
-            if(normalize){
-                double normScale = 1.0 / (double)totalSum;
-                for(unsigned r = 0; r < height; r++)
-                    hist[r] *= normScale;
-            }
-        }
-        else{
-            std::cout << "\tERROR! horizontalProjectionHistogram() recieved a histogram smaller["<<histLeng<<"] than image height["<<height<<"]. Failed to make a histogram." << std::endl;
-            std::cout << sizeof(hist) << std::endl;
-            std::cout << sizeof(hist[0]) << std::endl;
+            hist[r] = sum;
         }
     }
     else{
@@ -360,45 +339,96 @@ void horizontalProjectionHistogram(png::image<png::gray_pixel> const &img, doubl
     }
 }
 
-void verticalProjectionHistogram(png::image<png::gray_pixel> const &img, double* hist, bool normalize){
+void horizontalProjectionHistogramNorm(png::image<png::gray_pixel> const &img, double* hist, unsigned thresh){
     if(hist){
 
         // Img info
         unsigned height = img.get_height();
         unsigned width = img.get_width();
 
-        unsigned histLeng = *(&hist + 1) - hist;
-        if(width <= histLeng){
+        // For normilization
+        unsigned totalSum = 0;
 
+        // For each row count pixels that are below the threshold
+        for(unsigned r = 0; r < height; r++){
 
-            // For normilization
-            unsigned totalSum = 0;
+            // Read row once
+            const std::vector<png::byte, std::allocator<png::byte>> row = img[r];
 
-            // For each col count pixels that are below the threshold
-            unsigned thresh = 127;
+            unsigned sum = 0;
             for(unsigned c = 0; c < width; c++){
-
-                unsigned sum = 0;
-                for(unsigned r = 0; r < height; r++){
-                    if(img[r][c] < thresh){
-                        sum++;
-                        totalSum++;
-                    }
+                if(row[c] < thresh){
+                    sum++;
+                    totalSum++;
                 }
-
-                hist[c] = sum;
             }
 
-            // Normalize the histogram if requested
-            if(normalize){
-                double normScale = 1.0 / (double)totalSum;
-                for(unsigned r = 0; r < width; r++)
-                    hist[r] *= normScale;
+            hist[r] = sum;
+        }
+
+        // Normalize the histogram
+        double normScale = 1.0 / (double)totalSum;
+        for(unsigned r = 0; r < height; r++)
+            hist[r] *= normScale;
+    }
+    else{
+        std::cout << "\tERROR! horizontalProjectionHistogram() recieved a null histogram. Failed to make a histogram." << std::endl;
+    }
+}
+
+void verticalProjectionHistogram(png::image<png::gray_pixel> const &img, unsigned* hist, unsigned thresh){
+    if(hist){
+
+        // Img info
+        unsigned height = img.get_height();
+        unsigned width = img.get_width();
+
+        // For each col count pixels that are below the threshold
+        for(unsigned c = 0; c < width; c++){
+
+            unsigned sum = 0;
+            for(unsigned r = 0; r < height; r++){
+                if(img[r][c] < thresh){
+                    sum++;
+                }
             }
+
+            hist[c] = sum;
         }
-        else{
-            std::cout << "\tERROR! verticalProjectionHistogram() recieved a histogram smaller["<<histLeng<<"] than image width["<<width<<"]. Failed to make a histogram." << std::endl;
+    }
+    else{
+        std::cout << "\tERROR! verticalProjectionHistogram() recieved a null histogram. Failed to make a histogram." << std::endl;
+    }
+}
+
+void verticalProjectionHistogramNorm(png::image<png::gray_pixel> const &img, double* hist, unsigned thresh){
+    if(hist){
+
+        // Img info
+        unsigned height = img.get_height();
+        unsigned width = img.get_width();
+
+        // For normilization
+        unsigned totalSum = 0;
+
+        // For each col count pixels that are below the threshold
+        for(unsigned c = 0; c < width; c++){
+
+            unsigned sum = 0;
+            for(unsigned r = 0; r < height; r++){
+                if(img[r][c] < thresh){
+                    sum++;
+                    totalSum++;
+                }
+            }
+
+            hist[c] = sum;
         }
+
+        // Normalize the histogram
+        double normScale = 1.0 / (double)totalSum;
+        for(unsigned r = 0; r < width; r++)
+            hist[r] *= normScale;
     }
     else{
         std::cout << "\tERROR! verticalProjectionHistogram() recieved a null histogram. Failed to make a histogram." << std::endl;
@@ -408,6 +438,186 @@ void verticalProjectionHistogram(png::image<png::gray_pixel> const &img, double*
 // -----------------
 // Image processing
 // -----------------
+
+bool sortTupleValue(tuple2<int> a, tuple2<int> b){
+    return a._0 > b._0;
+}
+
+bool sortTupleIndex(tuple2<int> a, tuple2<int> b){
+    return a._1 < b._1;
+}
+
+tuple4<unsigned> findTextBounds(png::image<png::gray_pixel> const &img){
+
+    unsigned histThreshold = 127u;      // Minimum intensity for the histogram to count a pixel
+    unsigned histLowerThreshold = 1;    // Minimum pixels for a row/col to be marked important
+
+    unsigned width = img.get_width();
+    unsigned height = img.get_height();
+
+    // Generate a horizontal histogram of the image to find the segments
+    unsigned* histHorizontal = (unsigned*) malloc(height * sizeof(unsigned));
+    unsigned* histVertical = (unsigned*) malloc(width * sizeof(unsigned));
+    if(histHorizontal && histVertical){
+        horizontalProjectionHistogram(img, histHorizontal, histThreshold);
+        
+        // Find the max 3 peaks (these will be the segments)
+        // Stored as (value, index)
+        tuple2<int> yPeakList[3] = {{-INT32_MAX, -INT32_MAX}, {-INT32_MAX, -INT32_MAX}, {-INT32_MAX, -INT32_MAX}};
+        for(int r = 0; r < height; r++){
+            int v = (int)histHorizontal[r];
+
+            if(r == 459){
+                unsigned jghjasfdd = 1;
+            }
+
+            // Check that we arent next to a row we already marked
+            // If so update the max value of the respective row if its greater
+            bool nextToAPeak = false;
+            for(unsigned i = 0; i < 3; i++){
+                unsigned d = abs(yPeakList[i]._1 - r);
+                if(d < 3){
+                    nextToAPeak = true;
+                    if(yPeakList[i]._0 < v){
+                        yPeakList[i]._0 = v;
+                        yPeakList[i]._1 = r;
+
+                        // keep the list in order if we updated it
+                        std::sort(yPeakList, yPeakList + 3, sortTupleValue);
+                    }
+
+                    break;
+                }
+            }
+
+            if(!nextToAPeak){
+                for(unsigned i = 0; i < 3; i++){
+                    if(yPeakList[i]._0 < v){
+
+                        // Inserting into ordered list, push everything up
+                        for(unsigned ii = 2; i+1 <= ii; ii--){
+                            yPeakList[ii] = yPeakList[ii-1];
+                        }
+                        yPeakList[i]._0 = v;
+                        yPeakList[i]._1 = r;
+
+                        break;
+                    }
+                }
+            }
+        }
+        
+        // Saftey checks:
+        // -- Should be three peaks (No negative values in the array)
+        for(unsigned i = 0; i < 3; i++){
+            tuple2<int> yPeak = yPeakList[i];
+            if(yPeak._0 < 0 || yPeak._1 < 0){
+                std::cerr << "\tERROR! findTextBounds() did not find all three segments." << std::endl;
+                throw std::exception();
+            }
+        }
+
+        // Sort the peaks in order of index
+        std::sort(yPeakList, yPeakList+3, sortTupleIndex);
+
+        // Return the bounds of the handwritten text 
+        // NOTE: We overestimate segment width to be +/-5
+        int y0 = yPeakList[1]._1 + 5;
+        int y1 = yPeakList[2]._1 - 5;
+
+        // Close the margins further by moving in to the next non-zero row
+        // NOTE Crop is done 5 rows above/below the next non-zero bin, check that we went at least 5 rows in
+        for(unsigned r = y0; r < y1; r++){
+            if(histLowerThreshold < histHorizontal[r]){
+                int yy0 = r - 5;
+                if(y0 < yy0){
+                    y0 = yy0;
+                }
+                break;
+            }
+        }
+        for(unsigned r = y1; y0 < r; r--){
+            if(histLowerThreshold < histHorizontal[r]){
+                int yy1 = r + 5;
+                if(yy1 < y1){
+                    y1 = yy1;
+                }
+                break;
+            }
+        }
+
+        // Determine the vertical bounds using the same out-in method above
+        unsigned x0 = 0;
+        unsigned x1 = width;
+        verticalProjectionHistogram(img, histVertical, histThreshold);
+        for(unsigned c = x0; c < x1; c++){
+            if(histLowerThreshold < histVertical[c]){
+                int xx0 = c - 5;
+                if(x0 < xx0){
+                    x0 = xx0;
+                }
+                break;
+            }
+        }
+        for(unsigned c = x1; x0 < c; c--){
+            if(histLowerThreshold < histVertical[c]){
+                int xx1 = c + 5;
+                if(xx1 < x1){
+                    x1 = xx1;
+                }
+                break;
+            }
+        }
+
+        // Free and return the bounds 
+        free(histHorizontal);
+        free(histVertical);
+        tuple4<unsigned> textBounds = {(unsigned)y0, (unsigned)y1, (unsigned)x0, (unsigned)x1};
+        return textBounds;
+    }
+    else{
+        std::cerr << "\tERROR! Failed to allocated histogram needed in findTextBounds()." << std::endl;
+        throw std::exception();
+    }
+}
+
+png::image<png::gray_pixel> isolateHandwrittenText(png::image<png::gray_pixel> const &img){
+
+    unsigned width = img.get_width();
+    unsigned height = img.get_height();
+
+    // Compute the bounds on the handwritten text
+    tuple4<unsigned> textBounds = findTextBounds(img);
+    unsigned y1 = textBounds._0;
+    unsigned y2 = textBounds._1;
+    unsigned x1 = textBounds._2;
+    unsigned x2 = textBounds._3;
+
+    // Crop the image into a new cropped image
+    unsigned heightCropped = y2 - y1;
+    unsigned widthCropped = x2 - x1;
+    png::image<png::gray_pixel> imgYCropped(widthCropped, heightCropped);
+    for(unsigned r = y1, rr = 0; r < y2; r++, rr++){
+        std::vector<png::gray_pixel> const rowSrc = img[r];
+        std::vector<png::gray_pixel> rowTgt = imgYCropped[rr];
+        for(unsigned c = x1, cc = 0; c < x2; c++, cc++){
+            rowTgt[cc] = rowSrc[c];
+        }
+        imgYCropped[rr] = rowTgt;
+    }
+
+    return imgYCropped;
+}
+
+png::image<png::gray_pixel> preProcessDocument(png::image<png::gray_pixel> const &img){
+
+    // Filter noise and isolate edges
+
+    // Isolate the handwritten text
+    png::image<png::gray_pixel> imgYCropped = isolateHandwrittenText(img);
+    
+    return imgYCropped;
+}
 
 png::image<png::gray_pixel> segmentImageThreshold(png::image<png::gray_pixel> const &imgSrc, unsigned T){
 

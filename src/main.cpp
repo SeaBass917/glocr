@@ -3,16 +3,27 @@
 
 #include <iostream>
 
+void cleanDocuments(char const* documentsDirectory, char const* documentsCleanedDirectory){
+
+    // Check that the data documents are on file, and
+    // make an ouput directory if we need it
+    if(fs::exists(documentsDirectory)){
+        if(!fs::exists(documentsDirectory)) fs::create_directories(documentsCleanedDirectory);
+
+        fs::directory_iterator(documentsDirectory)
+    }
+    else{
+        std::cerr << "\tERROR! cleanDocuments() recieved bad address to documents directory. Cannot reach \"" << documentsDirectory << "\"." << std::endl;
+        throw std::exception();
+    }
+}
+
 int main(int argc, char const *argv[]){
 
-    char const* addr_test = "data/document1.png";
+    char const* documentsDirectory = "data/IAM/documents/";
+    char const* documentsCleanedDirectory = "data/IAM/documentsCleaned/";
 
-    // if(fs::exists(addr_test)){
-    //     image img(addr_test);
-    // }
-    // else{
-    //     std::cerr << "\tERROR! Failed to read image file \"" << addr_test << "\"." << std::endl;
-    // }
+    cleanDocuments(documentsDirectory, documentsCleanedDirectory);
 
     return 0;
 }

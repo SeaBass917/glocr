@@ -4,11 +4,12 @@
 #include <iostream>
 #include <string>
 
-int main(int argc, char const *argv[]){
+// TODO: Automate test a little bit
+void edgeDetection_test(){
 
     // Create a directory for doing tests
     std::string testDir = "imageprocessing_test/";
-    fs::create_directory(testDir);
+    if(!fs::exists(testDir)) fs::create_directory(testDir);
 
     // Draw a smile
     std::string pathSmile = testDir+"smile.png";
@@ -53,6 +54,37 @@ int main(int argc, char const *argv[]){
         std::cerr << "Failed to allocate memory for edgemap." << std::endl;
         throw std::exception();
     }
+}
+
+void preProcessing_test(){
+
+    // Check the document preprocessor
+
+    // Create a directory for doing tests
+    std::string testDir = "imageprocessing_test/";
+    if(!fs::exists(testDir)) fs::create_directory(testDir);
+
+    // Test image
+    std::string testImg = "document.png";
+
+    if(fs::exists(testImg)){
+
+        png::image<png::gray_pixel> imgDoc(testImg);
+
+        png::image<png::gray_pixel> imgDocClean = preProcessDocument(imgDoc);
+
+        std::string fileOut = testDir+getPathNoExtension(testImg)+"_clean.png";
+        imgDocClean.write(fileOut);
+    }
+    else{
+        std::cerr << "\tERROR! preProcessing_test() cannot find \""<<testImg<<"\" needed for test." << std::endl;
+    }
+}
+
+int main(int argc, char const *argv[]){
+
+    // edgeDetection_test();
+    preProcessing_test();
 
     return 0;
 }
