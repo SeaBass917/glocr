@@ -67,7 +67,7 @@ void preProcessing_test(){
     if(!fs::exists(testDir)) fs::create_directory(testDir);
 
     // Test image
-    std::string testImg = "../data/IAM/documents/a01-000u.png";
+    std::string testImg = "../data/IAM/documents/a02-000.png";
 
     if(fs::exists(testImg)){
 

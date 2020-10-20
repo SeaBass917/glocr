@@ -54,11 +54,7 @@ void drawASmile(char const* addrOut){
 // Image Analysis
 // -----------------
 
-tuple2<float> computeGradientVector_sobel(png::image<png::gray_pixel> const &image, unsigned const r, unsigned const c){
-
-    // Image dimensions
-    unsigned const height = image.get_height();
-    unsigned const width = image.get_width();
+float computeGradientVector_sobel(png::image<png::gray_pixel> const &image, unsigned const r, unsigned const c, unsigned const width, unsigned const height){
 
     // Initialize variables for the readablity
     int sA, sB, sC, sD, sF, sG, sH, sI;
@@ -86,21 +82,102 @@ tuple2<float> computeGradientVector_sobel(png::image<png::gray_pixel> const &ima
     sI = (int)rowNext[cNext];
 
     // Compute the gradient components
-    float gx = sC + 2.0*sF + sI - sA - 2.0*sD - sG;
-    float gy = sG + 2.0*sH + sI - sA - 2.0*sB - sC;
+    float gx = sC + 2.0f*sF + sI - sA - 2.0f*sD - sG;
+    float gy = sG + 2.0f*sH + sI - sA - 2.0f*sB - sC;
+
+    // Return the magnitude
+    return sqrtf(gx*gx + gy*gy) / 8.0f;
+}
+
+tuple2<float> computeDirectionalGradientVector_sobel(png::image<png::gray_pixel> const &image, unsigned const r, unsigned const c, unsigned const width, unsigned const height){
+
+    // Initialize variables for the readablity
+    int sA, sB, sC, sD, sF, sG, sH, sI;
+
+    // Mirror on the edges
+    unsigned rPrev = (r == 0)? r + 1 : r - 1;
+    unsigned rNext = (r == height - 1)? r - 1 : r + 1;
+    unsigned cPrev = (c == 0)? c + 1 : c - 1;
+    unsigned cNext = (c == width - 1)? c - 1 : c + 1;
+
+    // Read the prev row
+    const std::vector<png::byte, std::allocator<png::byte>> rowPrev = image[rPrev];
+    sA = (int)rowPrev[cPrev];
+    sB = (int)rowPrev[c];
+    sC = (int)rowPrev[cNext];
+    // Read the current row
+    const std::vector<png::byte, std::allocator<png::byte>> row = image[r];
+    sD = (int)row[cPrev];
+    // sE = row[c] (Not used)
+    sF = (int)row[cNext];
+    // Read the next row
+    const std::vector<png::byte, std::allocator<png::byte>> rowNext = image[rNext];
+    sG = (int)rowNext[cPrev];
+    sH = (int)rowNext[c];
+    sI = (int)rowNext[cNext];
+
+    // Compute the gradient components
+    float gx = sC + 2.0f*sF + sI - sA - 2.0f*sD - sG;
+    float gy = sG + 2.0f*sH + sI - sA - 2.0f*sB - sC;
 
     // Package the gradient vector into a tuple and return
     tuple2<float> grad;
-    grad._0 = gx / 8.0f;
-    grad._1 = gy / 8.0f;
+    grad._0 = gx;
+    grad._1 = gy;
+
     return grad;
 }
 
-tuple2<float> computeGradientVector_median(png::image<png::gray_pixel> const &image, unsigned const r, unsigned const c){
+float computeGradientVector_median(png::image<png::gray_pixel> const &image, unsigned const r, unsigned const c, unsigned const width, unsigned const height){
 
-    // Image dimensions
-    unsigned const height = image.get_height();
-    unsigned const width = image.get_width();
+    // Initialize variables for the readablity
+    int sA, sB, sC, sD, sF, sG, sH, sI;
+
+    // Mirror on the edges
+    unsigned rPrev = (r == 0)? r + 1 : r - 1;
+    unsigned rNext = (r == height - 1)? r - 1 : r + 1;
+    unsigned cPrev = (c == 0)? c + 1 : c - 1;
+    unsigned cNext = (c == width - 1)? c - 1 : c + 1;
+
+    // Read the prev row
+    const std::vector<png::byte, std::allocator<png::byte>> rowPrev = image[rPrev];
+    sA = (int)rowPrev[cPrev];
+    sB = (int)rowPrev[c];
+    sC = (int)rowPrev[cNext];
+    // Read the current row
+    const std::vector<png::byte, std::allocator<png::byte>> row = image[r];
+    sD = (int)row[cPrev];
+    // sE = row[c] (Not used)
+    sF = (int)row[cNext];
+    // Read the next row
+    const std::vector<png::byte, std::allocator<png::byte>> rowNext = image[rNext];
+    sG = (int)rowNext[cPrev];
+    sH = (int)rowNext[c];
+    sI = (int)rowNext[cNext];
+
+    // Fill the sample arrays
+    int x0[5] = {
+        sA, sB, sD, sG, sH
+    };
+    int x1[5] = {
+        sB, sC, sF, sH, sI
+    };
+    int y0[5] = {
+        sA, sB, sC, sD, sF
+    };
+    int y1[5] = {
+        sD, sF, sG, sH, sI
+    };
+
+    // NOTE: the typecast to float so that the gradient datatype is consistent
+    float gx = (float)(median(x1, 5) - median(x0, 5));
+    float gy = (float)(median(y1, 5) - median(y0, 5));
+
+    // Return the magnitude
+    return sqrtf(gx*gx + gy*gy);
+}
+
+tuple2<float> computeDirectionalGradientVector_median(png::image<png::gray_pixel> const &image, unsigned const r, unsigned const c, unsigned const width, unsigned const height){
 
     // Initialize variables for the readablity
     int sA, sB, sC, sD, sF, sG, sH, sI;
@@ -161,13 +238,13 @@ void populateDirectionalGradientMap(tuple2<float>** gradMap, png::image<png::gra
         if(gradMap){
 
             // Determine what function to use for the gradient calculation
-            tuple2<float> (*computeGradientVector)(png::image<png::gray_pixel> const&, unsigned const, unsigned const);
+            tuple2<float> (*computeGradientVector)(png::image<png::gray_pixel> const&, unsigned const, unsigned const, unsigned const, unsigned const);
             switch (gradientType){
             case SOBEL:
-                computeGradientVector = &computeGradientVector_sobel;
+                computeGradientVector = &computeDirectionalGradientVector_sobel;
                 break;
             case MEDIAN:
-                computeGradientVector = &computeGradientVector_median;
+                computeGradientVector = &computeDirectionalGradientVector_median;
                 break;
             default:
                 std::cerr << "\tERROR! Invalid gradient type: "<<gradientType<<" passed to createGradientMap()." << std::endl;
@@ -177,10 +254,12 @@ void populateDirectionalGradientMap(tuple2<float>** gradMap, png::image<png::gra
                 
             // Loop through th image pixels and compute gradient at each point
             for (unsigned r = 0; r < height; r++){
+                tuple2<float>* gradMapRow = gradMap[r];
                 for (unsigned c = 0; c < width; c++){
-                    tuple2<float> grad = computeGradientVector(image, r, c);
-                    gradMap[r][c] = grad;
+                    tuple2<float> grad = computeGradientVector(image, r, c, width, height);
+                    gradMapRow[c] = grad;
                 }
+                gradMap[r] = gradMapRow;
             }
         }
         else{
@@ -202,7 +281,7 @@ void populateGradientMap(float** gradMap, png::image<png::gray_pixel> const &ima
         if(gradMap){
 
             // Determine what function to use for the gradient calculation
-            tuple2<float> (*computeGradientVector)(png::image<png::gray_pixel> const&, unsigned const, unsigned const);
+            float (*computeGradientVector)(png::image<png::gray_pixel> const&, unsigned const, unsigned const, unsigned const, unsigned const);
             switch (gradientType){
             case SOBEL:
                 computeGradientVector = &computeGradientVector_sobel;
@@ -217,13 +296,13 @@ void populateGradientMap(float** gradMap, png::image<png::gray_pixel> const &ima
             }
                 
             // Loop through th image pixels and compute gradient at each point
+#pragma omp parallel for
             for (unsigned r = 0; r < height; r++){
+                float* gradMapRow = gradMap[r];
                 for (unsigned c = 0; c < width; c++){
-                    tuple2<float> grad = computeGradientVector(image, r, c);
-                    float gradX = grad._0;
-                    float gradY = grad._1;
-                    gradMap[r][c] = sqrtf(gradX*gradX + gradY*gradY);
+                    gradMapRow[c] = computeGradientVector(image, r, c, width, height);
                 }
+                gradMap[r] = gradMapRow;
             }
         }
         else{
@@ -261,6 +340,7 @@ void populateEdgeMap(bool** edgeMap, png::image<png::gray_pixel> const &image, g
             populateGradientMap(gradMap, image, gradientType);
 
             // Threshold the gradient map
+#pragma omp parallel for
             for(unsigned r = 0; r < height; r++){
                 float* rowG = gradMap[r];
                 bool* rowE = edgeMap[r];
@@ -284,55 +364,6 @@ void populateEdgeMap(bool** edgeMap, png::image<png::gray_pixel> const &image, g
         std::cerr << "createEdgeMap() recieved null edgemap." << std::endl;
         throw std::exception();
     }
-}
-
-png::image<png::gray_pixel> convertToEdgeMap(png::image<png::gray_pixel> const &img){
-    unsigned const height = img.get_height();
-    unsigned const width = img.get_width();
-
-    bool** edgeMap = (bool**)malloc(sizeof(bool*) * height);
-    if(edgeMap){
-        for(unsigned i = 0; i < height; i++){
-            bool* row = (bool*)malloc(sizeof(bool) * width);
-            if(row){
-                edgeMap[i] = row;
-            }
-            else{
-                std::cerr << "Failed to allocate memory for edgemap." << std::endl;
-                throw std::exception();
-            }
-        }
-
-        // Create boolean edge map, convert to png image
-        populateEdgeMap(edgeMap, img, SOBEL, 40);
-        png::image<png::gray_pixel> imgEdgeMap = imageFromEdgeMap(edgeMap, height, width);
-
-        for(unsigned i = 0; i < height; i++)
-            free(edgeMap[i]);
-        free(edgeMap);
-
-        return imgEdgeMap;
-    }
-    else{
-        std::cerr << "Failed to allocate memory for edgemap." << std::endl;
-        throw std::exception();
-    }
-}
-
-png::image<png::gray_pixel> imageFromEdgeMap(bool** edgeMap, unsigned const height, unsigned const width){
-    png::image<png::gray_pixel> img(width, height);
-
-    for(unsigned r = 0; r < height; r++){
-        bool* rowEdge = edgeMap[r];
-        std::vector<png::gray_pixel> rowImg = img[r];
-        for(unsigned c = 0; c < width; c++){
-            if(rowEdge[c]) rowImg[c] = 0;
-            else rowImg[c] = 255;
-        }
-        img[r] = rowImg;
-    }
-
-    return img;
 }
 
 void horizontalProjectionHistogram(png::image<png::gray_pixel> const &img, unsigned* hist, unsigned thresh){
@@ -473,10 +504,10 @@ bool sortTupleIndex(tuple2<int> a, tuple2<int> b){
 
 tuple4<unsigned> findTextBounds(png::image<png::gray_pixel> const &img){
 
-    unsigned histThreshold = 100u;      // Minimum intensity for the histogram to count a pixel
-    unsigned histLowerThreshold = 1;    // Minimum pixels for a row/col to be marked important
-    unsigned cropPaddingWidth = 25;     // How much whitespace padding to add to the crop
-    unsigned segmentRadius = 6;                     // Estimated segment Radius
+    unsigned histThreshold = 180u;      // Minimum intensity for the histogram to count a pixel
+    unsigned histLowerThreshold = 3;    // Minimum pixels for a row/col to be marked important
+    unsigned cropPaddingWidth = 150;     // How much whitespace padding to add to the crop
+    unsigned segmentRadius = 10;                     // Estimated segment Radius
     unsigned segmentDiameter = segmentRadius*2;     // Diameter calculation is also needed for min spacing
 
     unsigned width = img.get_width();
@@ -488,8 +519,9 @@ tuple4<unsigned> findTextBounds(png::image<png::gray_pixel> const &img){
     if(histHorizontal && histVertical){
         horizontalProjectionHistogram(img, histHorizontal, histThreshold);
 
-        for(unsigned i = 0; i < height; i++)
-            std::cout << i << ',' << histHorizontal[i] << std::endl;
+        // DEBUG
+        // for(unsigned i = 0; i < height; i++)
+        //     std::cout << i << ',' << histHorizontal[i] << std::endl;
         
         // Find the max 3 peaks (these will be the segments)
         // Stored as (value, index)
@@ -554,8 +586,9 @@ tuple4<unsigned> findTextBounds(png::image<png::gray_pixel> const &img){
         // Close the margins further by moving in to the next non-zero row
         // NOTE Crop is done 5 rows above/below the next non-zero bin, check that we went at least 5 rows in
         for(unsigned r = y0; r < y1; r++){
-            if(histLowerThreshold < histHorizontal[r]){
-                int yy0 = r - 5;
+            unsigned v = histHorizontal[r];
+            if(histLowerThreshold < v){
+                int yy0 = r - cropPaddingWidth;
                 if(y0 < yy0){
                     y0 = yy0;
                 }
@@ -563,8 +596,9 @@ tuple4<unsigned> findTextBounds(png::image<png::gray_pixel> const &img){
             }
         }
         for(unsigned r = y1; y0 < r; r--){
-            if(histLowerThreshold < histHorizontal[r]){
-                int yy1 = r + 5;
+            unsigned v = histHorizontal[r];
+            if(histLowerThreshold < v){
+                int yy1 = r + cropPaddingWidth;
                 if(yy1 < y1){
                     y1 = yy1;
                 }
@@ -573,11 +607,12 @@ tuple4<unsigned> findTextBounds(png::image<png::gray_pixel> const &img){
         }
 
         // Determine the vertical bounds using the same out-in method above
-        unsigned x0 = 0;
-        unsigned x1 = width;
+        int x0 = 0;
+        int x1 = width;
         verticalProjectionHistogram(img, histVertical, histThreshold);
-        for(unsigned c = x0; c < x1; c++){
-            if(histLowerThreshold < histVertical[c]){
+        for(int c = x0; c < x1; c++){
+            unsigned v = histVertical[c];
+            if(histLowerThreshold < v){
                 int xx0 = c - cropPaddingWidth;
                 if(x0 < xx0){
                     x0 = xx0;
@@ -585,8 +620,9 @@ tuple4<unsigned> findTextBounds(png::image<png::gray_pixel> const &img){
                 break;
             }
         }
-        for(unsigned c = x1; x0 < c; c--){
-            if(histLowerThreshold < histVertical[c]){
+        for(int c = x1; x0 < c; c--){
+            unsigned v = histVertical[c];
+            if(histLowerThreshold < v){
                 int xx1 = c + cropPaddingWidth;
                 if(xx1 < x1){
                     x1 = xx1;
@@ -635,12 +671,62 @@ png::image<png::gray_pixel> isolateHandwrittenText(png::image<png::gray_pixel> c
     return imgYCropped;
 }
 
+png::image<png::gray_pixel> convertToEdgeMap(png::image<png::gray_pixel> const &img){
+    unsigned const height = img.get_height();
+    unsigned const width = img.get_width();
+
+    bool** edgeMap = (bool**)malloc(sizeof(bool*) * height);
+    if(edgeMap){
+        for(unsigned i = 0; i < height; i++){
+            bool* row = (bool*)malloc(sizeof(bool) * width);
+            if(row){
+                edgeMap[i] = row;
+            }
+            else{
+                std::cerr << "Failed to allocate memory for edgemap." << std::endl;
+                throw std::exception();
+            }
+        }
+
+        // Create boolean edge map, convert to png image
+        populateEdgeMap(edgeMap, img, SOBEL, 60);
+        png::image<png::gray_pixel> imgEdgeMap = imageFromEdgeMap(edgeMap, height, width);
+
+        for(unsigned i = 0; i < height; i++)
+            free(edgeMap[i]);
+        free(edgeMap);
+
+        return imgEdgeMap;
+    }
+    else{
+        std::cerr << "Failed to allocate memory for edgemap." << std::endl;
+        throw std::exception();
+    }
+}
+
+png::image<png::gray_pixel> imageFromEdgeMap(bool** edgeMap, unsigned const height, unsigned const width){
+    png::image<png::gray_pixel> img(width, height);
+
+    for(unsigned r = 0; r < height; r++){
+        bool* rowEdge = edgeMap[r];
+        std::vector<png::gray_pixel> rowImg = img[r];
+        for(unsigned c = 0; c < width; c++){
+            if(rowEdge[c]) rowImg[c] = 0;
+            else rowImg[c] = 255;
+        }
+        img[r] = rowImg;
+    }
+
+    return img;
+}
+
 png::image<png::gray_pixel> preProcessDocument(png::image<png::gray_pixel> const &img){
 
     // Filter noise and isolate edges
     png::image<png::gray_pixel> edgeMapImage = convertToEdgeMap(img);
 
-    edgeMapImage.write("../docEdgeMap.png");
+    // DEBUG
+    // edgeMapImage.write("../edge.png");
 
     // Isolate the handwritten text
     png::image<png::gray_pixel> imgYCropped = isolateHandwrittenText(img, edgeMapImage);

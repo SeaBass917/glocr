@@ -7,6 +7,7 @@
  * - Tuples
  * - OS checks
  * - filesystem namespace/library in fs
+ * 
  */
 
 #include <filesystem>
@@ -32,6 +33,13 @@ struct tuple4{
     T _2;
     T _3;
 };
+
+// Timer code
+// #include <chrono> 
+// auto start = std::chrono::high_resolution_clock::now();
+// auto stop = std::chrono::high_resolution_clock::now();
+// auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
+// std::cout << duration.count() << std::endl;
 
 // Returns the path given with the extension removed
 //  NOTE: Returns "" If path is a directory or has no extension

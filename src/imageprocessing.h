@@ -37,7 +37,8 @@ void drawASmile(char const* addrOut);
     Returns: 
         Gx, Gy
 */
-tuple2<float> computeGradientVector_sobel(png::image<png::gray_pixel> const &image, unsigned const r, unsigned const c);
+float computeGradientVector_sobel(png::image<png::gray_pixel> const &image, unsigned const r, unsigned const c, unsigned const width, unsigned const height);
+tuple2<float> computeDirectionalGradientVector_sobel(png::image<png::gray_pixel> const &image, unsigned const r, unsigned const c, unsigned const width, unsigned const height);
 
 /*
     𝐼𝑥(𝑟, 𝑐) = median{𝐼(𝑟 − 1, 𝑐),𝐼(𝑟 − 1, 𝑐 + 1),𝐼(𝑟, 𝑐 + 1),𝐼(𝑟 + 1, 𝑐),𝐼(𝑟 + 1, 𝑐 + 1)}
@@ -57,7 +58,8 @@ tuple2<float> computeGradientVector_sobel(png::image<png::gray_pixel> const &ima
     Returns: 
         Gx, Gy
 */
-tuple2<float> computeGradientVector_median(png::image<png::gray_pixel> const &image, unsigned const r, unsigned const c);
+float computeGradientVector_median(png::image<png::gray_pixel> const &image, unsigned const r, unsigned const c, unsigned const width, unsigned const height);
+tuple2<float> computeDirectionalGradientVector_median(png::image<png::gray_pixel> const &image, unsigned const r, unsigned const c, unsigned const width, unsigned const height);
 
 // Populates a directional gradient map based on the provided image
 void populateDirectionalGradientMap(tuple2<float>** gradMap, png::image<png::gray_pixel> &image, gradType gradientType);
