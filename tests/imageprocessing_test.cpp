@@ -41,10 +41,12 @@ void edgeDetection_test(){
         }
 
         populateEdgeMap(edgeMap, img, SOBEL, 40);
-        drawEdgeMap(edgeMap, height, width, pathEdgeSobel);
+        png::image<png::gray_pixel> edgeMapImage = imageFromEdgeMap(edgeMap, height, width);
+        edgeMapImage.write(pathEdgeSobel);
 
         populateEdgeMap(edgeMap, img, MEDIAN, 40);
-        drawEdgeMap(edgeMap, height, width, pathEdgeMedian);
+        edgeMapImage = imageFromEdgeMap(edgeMap, height, width);
+        edgeMapImage.write(pathEdgeMedian);
 
         for(unsigned i = 0; i < height; i++)
             free(edgeMap[i]);
@@ -65,7 +67,7 @@ void preProcessing_test(){
     if(!fs::exists(testDir)) fs::create_directory(testDir);
 
     // Test image
-    std::string testImg = "document.png";
+    std::string testImg = "../data/IAM/documents/a01-000u.png";
 
     if(fs::exists(testImg)){
 
@@ -73,7 +75,7 @@ void preProcessing_test(){
 
         png::image<png::gray_pixel> imgDocClean = preProcessDocument(imgDoc);
 
-        std::string fileOut = testDir+getPathNoExtension(testImg)+"_clean.png";
+        std::string fileOut = testDir+"document_clean.png";
         imgDocClean.write(fileOut);
     }
     else{

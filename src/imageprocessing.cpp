@@ -286,29 +286,53 @@ void populateEdgeMap(bool** edgeMap, png::image<png::gray_pixel> const &image, g
     }
 }
 
-void drawEdgeMap(bool** edgeMap, unsigned height, unsigned width, char const* pathSmileEdge){
-    png::image<png::gray_pixel> img(width, height);
+png::image<png::gray_pixel> convertToEdgeMap(png::image<png::gray_pixel> const &img){
+    unsigned const height = img.get_height();
+    unsigned const width = img.get_width();
 
-    for(unsigned r = 0; r < height; r++){
-        for(unsigned c = 0; c < width; c++){
-            if(edgeMap[r][c]) img[r][c] = 255;
-            else img[r][c] = 0;
+    bool** edgeMap = (bool**)malloc(sizeof(bool*) * height);
+    if(edgeMap){
+        for(unsigned i = 0; i < height; i++){
+            bool* row = (bool*)malloc(sizeof(bool) * width);
+            if(row){
+                edgeMap[i] = row;
+            }
+            else{
+                std::cerr << "Failed to allocate memory for edgemap." << std::endl;
+                throw std::exception();
+            }
         }
-    }
 
-    img.write(pathSmileEdge);
+        // Create boolean edge map, convert to png image
+        populateEdgeMap(edgeMap, img, SOBEL, 40);
+        png::image<png::gray_pixel> imgEdgeMap = imageFromEdgeMap(edgeMap, height, width);
+
+        for(unsigned i = 0; i < height; i++)
+            free(edgeMap[i]);
+        free(edgeMap);
+
+        return imgEdgeMap;
+    }
+    else{
+        std::cerr << "Failed to allocate memory for edgemap." << std::endl;
+        throw std::exception();
+    }
 }
-void drawEdgeMap(bool** edgeMap, unsigned height, unsigned width, std::string pathSmileEdge){
+
+png::image<png::gray_pixel> imageFromEdgeMap(bool** edgeMap, unsigned const height, unsigned const width){
     png::image<png::gray_pixel> img(width, height);
 
     for(unsigned r = 0; r < height; r++){
+        bool* rowEdge = edgeMap[r];
+        std::vector<png::gray_pixel> rowImg = img[r];
         for(unsigned c = 0; c < width; c++){
-            if(edgeMap[r][c]) img[r][c] = 255;
-            else img[r][c] = 0;
+            if(rowEdge[c]) rowImg[c] = 0;
+            else rowImg[c] = 255;
         }
+        img[r] = rowImg;
     }
 
-    img.write(pathSmileEdge);
+    return img;
 }
 
 void horizontalProjectionHistogram(png::image<png::gray_pixel> const &img, unsigned* hist, unsigned thresh){
@@ -449,8 +473,11 @@ bool sortTupleIndex(tuple2<int> a, tuple2<int> b){
 
 tuple4<unsigned> findTextBounds(png::image<png::gray_pixel> const &img){
 
-    unsigned histThreshold = 127u;      // Minimum intensity for the histogram to count a pixel
+    unsigned histThreshold = 100u;      // Minimum intensity for the histogram to count a pixel
     unsigned histLowerThreshold = 1;    // Minimum pixels for a row/col to be marked important
+    unsigned cropPaddingWidth = 25;     // How much whitespace padding to add to the crop
+    unsigned segmentRadius = 6;                     // Estimated segment Radius
+    unsigned segmentDiameter = segmentRadius*2;     // Diameter calculation is also needed for min spacing
 
     unsigned width = img.get_width();
     unsigned height = img.get_height();
@@ -460,6 +487,9 @@ tuple4<unsigned> findTextBounds(png::image<png::gray_pixel> const &img){
     unsigned* histVertical = (unsigned*) malloc(width * sizeof(unsigned));
     if(histHorizontal && histVertical){
         horizontalProjectionHistogram(img, histHorizontal, histThreshold);
+
+        for(unsigned i = 0; i < height; i++)
+            std::cout << i << ',' << histHorizontal[i] << std::endl;
         
         // Find the max 3 peaks (these will be the segments)
         // Stored as (value, index)
@@ -467,16 +497,12 @@ tuple4<unsigned> findTextBounds(png::image<png::gray_pixel> const &img){
         for(int r = 0; r < height; r++){
             int v = (int)histHorizontal[r];
 
-            if(r == 459){
-                unsigned jghjasfdd = 1;
-            }
-
             // Check that we arent next to a row we already marked
             // If so update the max value of the respective row if its greater
             bool nextToAPeak = false;
             for(unsigned i = 0; i < 3; i++){
                 unsigned d = abs(yPeakList[i]._1 - r);
-                if(d < 3){
+                if(d <= segmentDiameter){
                     nextToAPeak = true;
                     if(yPeakList[i]._0 < v){
                         yPeakList[i]._0 = v;
@@ -522,8 +548,8 @@ tuple4<unsigned> findTextBounds(png::image<png::gray_pixel> const &img){
 
         // Return the bounds of the handwritten text 
         // NOTE: We overestimate segment width to be +/-5
-        int y0 = yPeakList[1]._1 + 5;
-        int y1 = yPeakList[2]._1 - 5;
+        int y0 = yPeakList[1]._1 + segmentRadius;
+        int y1 = yPeakList[2]._1 - segmentRadius;
 
         // Close the margins further by moving in to the next non-zero row
         // NOTE Crop is done 5 rows above/below the next non-zero bin, check that we went at least 5 rows in
@@ -552,7 +578,7 @@ tuple4<unsigned> findTextBounds(png::image<png::gray_pixel> const &img){
         verticalProjectionHistogram(img, histVertical, histThreshold);
         for(unsigned c = x0; c < x1; c++){
             if(histLowerThreshold < histVertical[c]){
-                int xx0 = c - 5;
+                int xx0 = c - cropPaddingWidth;
                 if(x0 < xx0){
                     x0 = xx0;
                 }
@@ -561,7 +587,7 @@ tuple4<unsigned> findTextBounds(png::image<png::gray_pixel> const &img){
         }
         for(unsigned c = x1; x0 < c; c--){
             if(histLowerThreshold < histVertical[c]){
-                int xx1 = c + 5;
+                int xx1 = c + cropPaddingWidth;
                 if(xx1 < x1){
                     x1 = xx1;
                 }
@@ -581,13 +607,13 @@ tuple4<unsigned> findTextBounds(png::image<png::gray_pixel> const &img){
     }
 }
 
-png::image<png::gray_pixel> isolateHandwrittenText(png::image<png::gray_pixel> const &img){
+png::image<png::gray_pixel> isolateHandwrittenText(png::image<png::gray_pixel> const &img, png::image<png::gray_pixel> const &edgeMapImage){
 
     unsigned width = img.get_width();
     unsigned height = img.get_height();
 
     // Compute the bounds on the handwritten text
-    tuple4<unsigned> textBounds = findTextBounds(img);
+    tuple4<unsigned> textBounds = findTextBounds(edgeMapImage);
     unsigned y1 = textBounds._0;
     unsigned y2 = textBounds._1;
     unsigned x1 = textBounds._2;
@@ -612,9 +638,12 @@ png::image<png::gray_pixel> isolateHandwrittenText(png::image<png::gray_pixel> c
 png::image<png::gray_pixel> preProcessDocument(png::image<png::gray_pixel> const &img){
 
     // Filter noise and isolate edges
+    png::image<png::gray_pixel> edgeMapImage = convertToEdgeMap(img);
+
+    edgeMapImage.write("../docEdgeMap.png");
 
     // Isolate the handwritten text
-    png::image<png::gray_pixel> imgYCropped = isolateHandwrittenText(img);
+    png::image<png::gray_pixel> imgYCropped = isolateHandwrittenText(img, edgeMapImage);
     
     return imgYCropped;
 }

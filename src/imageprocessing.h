@@ -68,9 +68,8 @@ void populateGradientMap(tuple2<float>** gradMap, png::image<png::gray_pixel> &i
 // Populates a boolean edge map based on the provided image
 void populateEdgeMap(bool** edgeMap, png::image<png::gray_pixel> const &image, gradType gradientType, float threshold);
 
-// Draws an edgemap as a local png
-void drawEdgeMap(bool** edgeMap, unsigned height, unsigned width, char const* pathSmileEdge);
-void drawEdgeMap(bool** edgeMap, unsigned height, unsigned width, std::string pathSmileEdge);
+// Draws an edgemap as a png
+png::image<png::gray_pixel> imageFromEdgeMap(bool** edgeMap, unsigned const height, unsigned const width);
 
 // Create a histogram of the horizontal projection of a grayscale image
 void horizontalProjectionHistogram(png::image<png::gray_pixel> const &img, unsigned* hist, unsigned thresh = 64);
