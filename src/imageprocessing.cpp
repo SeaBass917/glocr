@@ -12,6 +12,37 @@ png::image<png::gray_pixel> loadPNG(char const* addr){
     return img;
 }
 
+png::image<png::gray_pixel> crop(png::image<png::gray_pixel> const &img, unsigned const x0, unsigned const x1, unsigned const y0, unsigned const y1){
+
+    // Bounds checking
+    unsigned const width = img.get_width();
+    unsigned const height = img.get_height();
+    if( 0 <= x0 && x0 < x1 && x1 < width && 
+        0 <= y0 && y0 < y1 && y1 < height){
+
+        // Prepare a new image for the crop
+        unsigned const widthNew = x1 - x0 + 1;
+        unsigned const heightNew = y1 - y0 + 1;
+        png::image<png::gray_pixel> imgCropped(widthNew, heightNew);
+
+        // Loop through each image and move the data
+        for(unsigned y = y0, yy = 0; y <= y1; y++, yy++){
+            std::vector<png::gray_pixel> rowTgt = imgCropped[yy];
+            std::vector<png::gray_pixel> rowSrc = img[y];
+            for(unsigned x = x0, xx = 0; x <= x1; x++, xx++){
+                rowTgt[xx] = rowSrc[x];
+            }
+            imgCropped[yy] = rowTgt;
+        }
+        
+        return imgCropped;
+    }
+    else{
+        std::cerr << "\tERROR! Cannot crop image at x0={"<<x0<<"} x1={"<<x1<<"} y0={"<<y0<<"} y1={"<<y1<<"}." << std::endl;
+        throw std::exception();
+    }
+}
+
 void drawASmile(char const* addrOut){
     
     unsigned const srcRes = 8;
@@ -53,6 +84,181 @@ void drawASmile(char const* addrOut){
 // -----------------
 // Image Analysis
 // -----------------
+
+std::vector<png::image<png::gray_pixel>> lineSegmentation(png::image<png::gray_pixel> const &imgDoc){
+
+    unsigned const histThreshold = 180u;      // Minimum intensity for the histogram to count a pixel
+    unsigned const minBinCount = 5u;         // minBinCount before the histogram supresses that bin
+    unsigned const edgeMapThreshold = 60u;    // Threshold for the edge map to use
+    unsigned const yPadding = 25u;            // Number of pixels to pad the output with in the y direction
+    unsigned const numColumnsForHist = 750u;    // Number of lefthand columns to use for the histogram projection
+    
+    // Image dimensions
+    unsigned const height = imgDoc.get_height();
+    unsigned const width = imgDoc.get_width();
+
+    // Generate a horizontal histogram of the image to find the segments
+    // NOTE: We supress bins with too few counts to clean the results a little
+    // NOTE: We only use the first X00 columns of the image (helps isolate peaks)
+    unsigned* histHorizontal = (unsigned*) malloc(height * sizeof(unsigned));
+    if(histHorizontal){
+        horizontalProjectionHistogram(
+            crop(imgDoc, 0, numColumnsForHist, 0, height-1), 
+            histHorizontal, 
+            histThreshold
+        );
+
+        // DEBUG
+        for(unsigned i = 0; i < height; i++)
+            std::cout << i << ',' << histHorizontal[i] << std::endl;
+
+        // Determine the transition points
+        // NOTE: We store the starting index of the transition (i-1)
+        // NOTE: We handle the case where the line is touching the start/end of the image
+        //       Meaning there can be negative transition points + we need an extra iteration after the loop
+        std::vector<int> transitionPoints;
+        bool isCurrZero = true;
+        bool isPrevZero = true;
+        for(unsigned i = 0; i < height; i++){
+            unsigned hist = histHorizontal[i];
+            isPrevZero = isCurrZero;
+            isCurrZero = hist < minBinCount;
+            if(isPrevZero && !isCurrZero || !isPrevZero && isCurrZero){
+                transitionPoints.push_back(i-1);
+                // std::cout << i-1 << std::endl; // DEBUG
+            }
+        }
+        if(!isCurrZero){
+            transitionPoints.push_back(height-1);
+        }
+
+        // Determine the first and last non-zero bins
+        // NOTE: the padding is applied here
+        int iFirstBin = 0;
+        int iLastBin = height-1;
+        for(unsigned i = 0; i < height-1; i++){
+            if(0 < histHorizontal[i]){
+                iFirstBin = i - yPadding;
+                if(iFirstBin < 0){
+                    iFirstBin = 0;
+                }
+                break;
+            }
+        }
+        for(unsigned i = height-1; 0 < i; i--){
+            if(0 < histHorizontal[i]){
+                iLastBin = i + yPadding;
+                if(height <= iLastBin){
+                    iLastBin = height-1;
+                }
+                break;
+            }
+        }
+
+        // Check that the number of transition points makes sense
+        // Value should be even
+        unsigned numTransitions = transitionPoints.size();
+        unsigned numMidPoints = numTransitions / 2 - 1;
+        if((numTransitions & 1) == 0){
+
+            // Get a list of the midpoints
+            std::vector<unsigned> midPoints(numMidPoints);
+            for(unsigned i=2, ii=0; i < numTransitions; i+=2, ii++){
+                int midPoint = (transitionPoints[i] + transitionPoints[i-1])/2;
+                if(midPoint < 0){   // NOTE: In the case where the transition is the start of the img, we will get -1 here
+                    midPoint = 0;
+                }
+                midPoints[ii] = midPoint;
+            }
+
+            // Generate an edgemap for us to read and make segmenting decisions on
+            bool** edgeMap = (bool**)malloc(sizeof(bool*) * height);
+            if(edgeMap){
+                for(unsigned i = 0; i < height; i++){
+                    bool* row = (bool*)malloc(sizeof(bool) * width);
+                    if(row){
+                        edgeMap[i] = row;
+                    }
+                    else{
+                        std::cerr << "Failed to allocate memory for edgemap." << std::endl;
+                        throw std::exception();
+                    }
+                }
+
+                populateEdgeMap(edgeMap, imgDoc, SOBEL, edgeMapThreshold);
+
+                // Allocate space for yArrays
+                // These array will be used to store the y values along a midpoint that we will seperate on
+                // We need two to crop a line out
+                unsigned* yArrayCurr = (unsigned*)malloc(width * sizeof(unsigned));
+                unsigned* yArrayPrev = (unsigned*)malloc(width * sizeof(unsigned));
+                if(yArrayCurr && yArrayPrev){
+
+                    // Initialize the list of lines
+                    std::vector<png::image<png::gray_pixel>> imgLines;
+
+                    // Initialize the current yarray to be a straight line at the first non-zero bin
+                    // NOTE: We also initialize the prev array for the one-line case
+                    for(unsigned i = 0; i < width; i++){
+                        yArrayPrev[i] = iFirstBin;
+                        yArrayCurr[i] = iFirstBin;
+                    }
+
+                    // Determine the yvalues to cut along, cut, then add the line to the stack
+                    for(unsigned const& midPoint : midPoints){
+
+                        // Move the current array to the last array
+                        memcpy(yArrayPrev, yArrayCurr, width * sizeof(unsigned));
+
+                        // Determine a line through each midpoint that seperates the lines
+                        spaceTrace(yArrayCurr, imgDoc, midPoint);
+
+                        png::image<png::gray_pixel> imgLine = staggeredYCrop(imgDoc, yArrayPrev, yArrayCurr, yPadding);
+                        imgLines.push_back(imgLine);
+                    }
+
+                    // Set the last yarray to be a straight line at the last non-zero bin
+                    for(unsigned i = 0; i < width; i++){
+                        yArrayCurr[i] = iLastBin;
+                    }
+
+                    // Crop out the last line
+                    png::image<png::gray_pixel> imgLine = staggeredYCrop(imgDoc, yArrayPrev, yArrayCurr, yPadding);
+                    imgLines.push_back(imgLine);
+
+                    // Free Memory
+                    for(unsigned i = 0; i < height; i++)
+                        free(edgeMap[i]);
+                    free(edgeMap);
+                    free(yArrayCurr);
+                    free(yArrayPrev);
+
+                    // Return
+                    return imgLines;
+                }
+                else{
+                    std::cerr << "\tERROR! Failed to allocate yArray needed in lineSegmentation()." << std::endl;
+                    for(unsigned i = 0; i < height; i++)
+                        free(edgeMap[i]);
+                    free(edgeMap);
+                    throw std::exception();
+                }
+            }
+            else{
+                std::cerr << "\tERROR! Failed to allocate edgemap needed in lineSegmentation()." << std::endl;
+                throw std::exception();
+            }
+        }
+        else{
+            std::cerr << "\tERROR! lineSegmentation() Found an odd number of segments. Cannot confidently segment document." << std::endl;
+            throw std::exception();
+        }
+    }
+    else{
+        std::cerr << "\tERROR! Failed to allocate histogram needed in lineSegmentation()." << std::endl;
+        throw std::exception();
+    }
+}
 
 float computeGradientVector_sobel(png::image<png::gray_pixel> const &image, unsigned const r, unsigned const c, unsigned const width, unsigned const height){
 
@@ -229,7 +435,7 @@ tuple2<float> computeDirectionalGradientVector_median(png::image<png::gray_pixel
     return grad;
 }
 
-void populateDirectionalGradientMap(tuple2<float>** gradMap, png::image<png::gray_pixel> const &image, gradType gradientType){
+void populateDirectionalGradientMap(tuple2<float>** gradMap, png::image<png::gray_pixel> const &image, gradType const gradientType){
 
     // Image dimensions
     unsigned const height = image.get_height();
@@ -272,7 +478,7 @@ void populateDirectionalGradientMap(tuple2<float>** gradMap, png::image<png::gra
     }
 }
 
-void populateGradientMap(float** gradMap, png::image<png::gray_pixel> const &image, gradType gradientType){
+void populateGradientMap(float** gradMap, png::image<png::gray_pixel> const &image, gradType const gradientType){
 
     // Image dimensions
     unsigned const height = image.get_height();
@@ -315,7 +521,7 @@ void populateGradientMap(float** gradMap, png::image<png::gray_pixel> const &ima
     }
 }
 
-void populateEdgeMap(bool** edgeMap, png::image<png::gray_pixel> const &image, gradType gradientType, float threshold){
+void populateEdgeMap(bool** edgeMap, png::image<png::gray_pixel> const &image, gradType gradientType, float const threshold){
     if(edgeMap){
 
         // Image dimensions
@@ -366,7 +572,7 @@ void populateEdgeMap(bool** edgeMap, png::image<png::gray_pixel> const &image, g
     }
 }
 
-void horizontalProjectionHistogram(png::image<png::gray_pixel> const &img, unsigned* hist, unsigned thresh){
+void horizontalProjectionHistogram(png::image<png::gray_pixel> const &img, unsigned* hist, unsigned const thresh){
     if(hist){
 
         // Img info
@@ -394,7 +600,7 @@ void horizontalProjectionHistogram(png::image<png::gray_pixel> const &img, unsig
     }
 }
 
-void horizontalProjectionHistogramNorm(png::image<png::gray_pixel> const &img, double* hist, unsigned thresh){
+void horizontalProjectionHistogramNorm(png::image<png::gray_pixel> const &img, double* hist, unsigned const thresh){
     if(hist){
 
         // Img info
@@ -431,7 +637,7 @@ void horizontalProjectionHistogramNorm(png::image<png::gray_pixel> const &img, d
     }
 }
 
-void verticalProjectionHistogram(png::image<png::gray_pixel> const &img, unsigned* hist, unsigned thresh){
+void verticalProjectionHistogram(png::image<png::gray_pixel> const &img, unsigned* hist, unsigned const thresh){
     if(hist){
 
         // Img info
@@ -456,7 +662,7 @@ void verticalProjectionHistogram(png::image<png::gray_pixel> const &img, unsigne
     }
 }
 
-void verticalProjectionHistogramNorm(png::image<png::gray_pixel> const &img, double* hist, unsigned thresh){
+void verticalProjectionHistogramNorm(png::image<png::gray_pixel> const &img, double* hist, unsigned const thresh){
     if(hist){
 
         // Img info
@@ -493,6 +699,84 @@ void verticalProjectionHistogramNorm(png::image<png::gray_pixel> const &img, dou
 // -----------------
 // Image processing
 // -----------------
+
+void spaceTrace(unsigned* yArray, png::image<png::gray_pixel> const& img, unsigned const midPoint){
+
+    if(yArray){
+
+        // Img info
+        unsigned height = img.get_height();
+        unsigned width = img.get_width();
+
+        // TODO: tracing
+        // DEBUG
+        for(unsigned i = 0; i < width; i++){
+            yArray[i] = midPoint;
+        }
+    }
+    else{
+        std::cerr << "\tERROR! spaceTrace() recieved a null pointer." << std::endl;
+        throw std::exception();
+    }
+}
+
+png::image<png::gray_pixel> staggeredYCrop(png::image<png::gray_pixel> const& img, unsigned const* yTopArray, unsigned const* yBotArray, unsigned const yPadding){
+
+    if(yTopArray && yBotArray){
+
+        // Img info
+        unsigned height = img.get_height();
+        unsigned width = img.get_width();
+
+        // Determine the min and max Y values used for image allocation
+        unsigned yMin = yTopArray[0];
+        unsigned yMax = yBotArray[0];
+        for(unsigned i = 1; i < width; i++){
+            unsigned y0 = yTopArray[i];
+            unsigned y1 = yBotArray[i];
+            if(y0 < yMin){
+                yMin = y0;
+            }
+            if(yMax < y1){
+                yMax = y1;
+            }
+        }
+
+        // Height of the cropped image
+        unsigned heightCropped = yMax-yMin + 2 * yPadding + 1;
+
+        // Initialize output image with whitespace
+        png::image<png::gray_pixel> imgCropped(width, heightCropped);
+        for(unsigned y = 0; y < heightCropped; y++){
+            std::vector<png::gray_pixel> row = imgCropped[y];
+            for(unsigned x = 0; x < width; x++)
+                row[x] = 255;
+            imgCropped[y] = row;
+        }
+
+        // Crop out the pixels and store them in the output image
+        // Basically read the image sideways
+        // TODO: See if its worth it to transpose first and read rows of memory with memcpys
+        //       Dont forget that we want whitespace default
+        for(unsigned x = 0; x < width; x++){
+            unsigned y0 = yTopArray[x];
+            unsigned y1 = yBotArray[x];
+
+            // NOTE: we compute where to start in the output image as 
+            // difference between the heighest y0 + padding
+            unsigned yyStart = y0 - yMin + yPadding;
+            for(unsigned y = y0, yy = yyStart; y <= y1; y++, yy++){
+                imgCropped[yy][x] = img[y][x];
+            }
+        }
+
+        return imgCropped;
+    }
+    else{
+        std::cerr << "\tERROR! staggeredYCrop() recieved a null pointer." << std::endl;
+        throw std::exception();
+    }
+}
 
 bool sortTupleValue(tuple2<int> a, tuple2<int> b){
     return a._0 > b._0;
@@ -631,7 +915,7 @@ tuple4<unsigned> findTextBounds(png::image<png::gray_pixel> const &img){
             }
         }
 
-        // Free and return the bounds 
+        // Free and return the bounds
         free(histHorizontal);
         free(histVertical);
         tuple4<unsigned> textBounds = {(unsigned)y0, (unsigned)y1, (unsigned)x0, (unsigned)x1};
@@ -672,6 +956,9 @@ png::image<png::gray_pixel> isolateHandwrittenText(png::image<png::gray_pixel> c
 }
 
 png::image<png::gray_pixel> convertToEdgeMap(png::image<png::gray_pixel> const &img){
+    
+    unsigned edgeMapThreshold = 60;     // Threshold for the edge map to use
+
     unsigned const height = img.get_height();
     unsigned const width = img.get_width();
 
@@ -689,7 +976,7 @@ png::image<png::gray_pixel> convertToEdgeMap(png::image<png::gray_pixel> const &
         }
 
         // Create boolean edge map, convert to png image
-        populateEdgeMap(edgeMap, img, SOBEL, 60);
+        populateEdgeMap(edgeMap, img, SOBEL, edgeMapThreshold);
         png::image<png::gray_pixel> imgEdgeMap = imageFromEdgeMap(edgeMap, height, width);
 
         for(unsigned i = 0; i < height; i++)
@@ -734,7 +1021,7 @@ png::image<png::gray_pixel> preProcessDocument(png::image<png::gray_pixel> const
     return imgYCropped;
 }
 
-png::image<png::gray_pixel> segmentImageThreshold(png::image<png::gray_pixel> const &imgSrc, unsigned T){
+png::image<png::gray_pixel> segmentImageThreshold(png::image<png::gray_pixel> const &imgSrc, unsigned const T){
 
     // Image dimensions
     unsigned height = imgSrc.get_height();
@@ -743,16 +1030,20 @@ png::image<png::gray_pixel> segmentImageThreshold(png::image<png::gray_pixel> co
     // Create and return the segmented image
     png::image< png::gray_pixel > imgSeg(width, height);
     for(unsigned y = 0; y < height; y++){
+    std::vector<png::gray_pixel> rowSrc = imgSrc[y];
+    std::vector<png::gray_pixel> rowTgt = imgSeg[y];
         for(unsigned x = 0; x < width; x++){
-            if(T < imgSrc[y][x]) imgSeg[y][x] = 255;
-            else imgSeg[y][x] = 0;
-        }   
+            if(T <= rowSrc[x]) rowTgt[x] = 255;
+            else rowTgt[x] = 0;
+        }
+        imgSeg[y] = rowTgt;
     }
 
     return imgSeg;
 }
 
-png::image<png::gray_pixel> segmentImageKittler(png::image<png::gray_pixel> const &imgSrc){
+unsigned determineKittlerThreshold(png::image<png::gray_pixel> const &imgSrc){
+    std::cout << "\tWARNING TODO: Re-write determineKittlerThreshold() there are ege cases of failure." << std::endl;
 
     // Image dimensions
     unsigned height = imgSrc.get_height();
@@ -820,16 +1111,7 @@ png::image<png::gray_pixel> segmentImageKittler(png::image<png::gray_pixel> cons
 
     std::cout << "Threshold: " << T << std::endl;
 
-    // Create and return the segmented image
-    png::image< png::gray_pixel > imgSeg(width, height);
-    for(unsigned y = 0; y < height; y++){
-        for(unsigned x = 0; x < width; x++){
-            if(T < imgSrc[y][x]) imgSeg[y][x] = 0;
-            else imgSeg[y][x] = 255;
-        }   
-    }
-
-    return imgSeg;
+    return T;
 }
 
 template<class T>

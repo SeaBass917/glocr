@@ -5,11 +5,7 @@
 #include <string>
 
 // TODO: Automate test a little bit
-void edgeDetection_test(){
-
-    // Create a directory for doing tests
-    std::string testDir = "imageprocessing_test/";
-    if(!fs::exists(testDir)) fs::create_directory(testDir);
+void edgeDetection_test(std::string testDir){
 
     // Draw a smile
     std::string pathSmile = testDir+"smile.png";
@@ -58,13 +54,9 @@ void edgeDetection_test(){
     }
 }
 
-void preProcessing_test(){
+void preProcessing_test(std::string testDir){
 
     // Check the document preprocessor
-
-    // Create a directory for doing tests
-    std::string testDir = "imageprocessing_test/";
-    if(!fs::exists(testDir)) fs::create_directory(testDir);
 
     // Test image
     std::string testImg = "../data/IAM/documents/a02-000.png";
@@ -83,10 +75,37 @@ void preProcessing_test(){
     }
 }
 
+void lineSegmentation_test(std::string testDir){
+
+    std::string testDocumentPath = "document_cleaned.png";
+    if(fs::exists(testDocumentPath)){
+
+        png::image<png::gray_pixel> imgDoc(testDocumentPath);
+
+        std::vector<png::image<png::gray_pixel>> lineImgs = lineSegmentation(imgDoc);
+
+        std::string outputFilename = getPathNoExtension(testDocumentPath) + "_line_";
+        unsigned i = 0;
+        for(auto& lineImg : lineImgs){
+            std::string fileOut = testDir+outputFilename+std::to_string(i)+".png";
+            lineImg.write(fileOut);
+            i++;
+        }
+    }
+    else{
+        std::cerr << "\tERROR! preProcessing_test() cannot find \""<<testDocumentPath<<"\" needed for test." << std::endl;
+    }
+}
+
 int main(int argc, char const *argv[]){
 
-    // edgeDetection_test();
-    preProcessing_test();
+    // Create a directory for doing tests
+    std::string testDir = "imageprocessing_test/";
+    if(!fs::exists(testDir)) fs::create_directory(testDir);
+
+    // edgeDetection_test(testDir);
+    // preProcessing_test(testDir);
+    lineSegmentation_test(testDir);
 
     return 0;
 }
