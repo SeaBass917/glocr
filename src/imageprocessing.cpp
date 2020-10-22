@@ -103,8 +103,8 @@ std::vector<png::image<png::gray_pixel>> lineSegmentation(png::image<png::gray_p
     unsigned* histHorizontal = (unsigned*) malloc(height * sizeof(unsigned));
     if(histHorizontal){
         horizontalProjectionHistogram(
-            crop(imgDoc, 0, numColumnsForHist, 0, height-1), 
             histHorizontal, 
+            crop(imgDoc, 0, numColumnsForHist, 0, height-1), 
             histThreshold
         );
 
@@ -571,7 +571,7 @@ void populateEdgeMap(bool** edgeMap, png::image<png::gray_pixel> const &image, g
     }
 }
 
-void horizontalProjectionHistogram(png::image<png::gray_pixel> const &img, unsigned* hist, unsigned const thresh){
+void horizontalProjectionHistogram(unsigned* hist, png::image<png::gray_pixel> const &img, unsigned const thresh){
     if(hist){
 
         // Img info
@@ -599,7 +599,7 @@ void horizontalProjectionHistogram(png::image<png::gray_pixel> const &img, unsig
     }
 }
 
-void horizontalProjectionHistogramNorm(png::image<png::gray_pixel> const &img, double* hist, unsigned const thresh){
+void horizontalProjectionHistogramNorm(double* hist, png::image<png::gray_pixel> const &img, unsigned const thresh){
     if(hist){
 
         // Img info
@@ -636,7 +636,7 @@ void horizontalProjectionHistogramNorm(png::image<png::gray_pixel> const &img, d
     }
 }
 
-void verticalProjectionHistogram(png::image<png::gray_pixel> const &img, unsigned* hist, unsigned const thresh){
+void verticalProjectionHistogram(unsigned* hist, png::image<png::gray_pixel> const &img, unsigned const thresh){
     if(hist){
 
         // Img info
@@ -661,7 +661,7 @@ void verticalProjectionHistogram(png::image<png::gray_pixel> const &img, unsigne
     }
 }
 
-void verticalProjectionHistogramNorm(png::image<png::gray_pixel> const &img, double* hist, unsigned const thresh){
+void verticalProjectionHistogramNorm(double* hist, png::image<png::gray_pixel> const &img, unsigned const thresh){
     if(hist){
 
         // Img info
@@ -800,7 +800,7 @@ tuple4<unsigned> findTextBounds(png::image<png::gray_pixel> const &img){
     unsigned* histHorizontal = (unsigned*) malloc(height * sizeof(unsigned));
     unsigned* histVertical = (unsigned*) malloc(width * sizeof(unsigned));
     if(histHorizontal && histVertical){
-        horizontalProjectionHistogram(img, histHorizontal, histThreshold);
+        horizontalProjectionHistogram(histHorizontal, img, histThreshold);
 
         // DEBUG
         // for(unsigned i = 0; i < height; i++)
@@ -892,7 +892,7 @@ tuple4<unsigned> findTextBounds(png::image<png::gray_pixel> const &img){
         // Determine the vertical bounds using the same out-in method above
         int x0 = 0;
         int x1 = width;
-        verticalProjectionHistogram(img, histVertical, histThreshold);
+        verticalProjectionHistogram(histVertical, img, histThreshold);
         for(int c = x0; c < x1; c++){
             unsigned v = histVertical[c];
             if(histLowerThreshold < v){

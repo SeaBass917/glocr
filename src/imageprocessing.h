@@ -77,16 +77,16 @@ void populateEdgeMap(bool** edgeMap, png::image<png::gray_pixel> const &image, g
 png::image<png::gray_pixel> imageFromEdgeMap(bool** edgeMap, unsigned const height, unsigned const width);
 
 // Create a histogram of the horizontal projection of a grayscale image
-void horizontalProjectionHistogram(png::image<png::gray_pixel> const &img, unsigned* hist, unsigned const thresh = 64);
+void horizontalProjectionHistogram(unsigned* hist, png::image<png::gray_pixel> const &img, unsigned const thresh = 64);
 
 // Create a histogram of the horizontal projection of a grayscale image (normalizes the output)
-void horizontalProjectionHistogramNorm(png::image<png::gray_pixel> const &img, double* hist, unsigned const thresh = 64);
+void horizontalProjectionHistogramNorm(double* hist, png::image<png::gray_pixel> const &img, unsigned const thresh = 64);
 
 // Create a histogram of the vertical projection of a grayscale image
-void verticalProjectionHistogram(png::image<png::gray_pixel> const &img, unsigned* hist, unsigned const thresh = 64);
+void verticalProjectionHistogram(unsigned* hist, png::image<png::gray_pixel> const &img, unsigned const thresh = 64);
 
 // Create a histogram of the vertical projection of a grayscale image (normalizes the output)
-void verticalProjectionHistogramNorm(png::image<png::gray_pixel> const &img, double* hist, unsigned const thresh = 64);
+void verticalProjectionHistogramNorm(double* hist, png::image<png::gray_pixel> const &img, unsigned const thresh = 64);
 
 // -----------------
 // Image processing
