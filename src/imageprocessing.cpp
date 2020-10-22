@@ -201,20 +201,19 @@ std::vector<png::image<png::gray_pixel>> lineSegmentation(png::image<png::gray_p
                     // NOTE: We also initialize the prev array for the one-line case
                     for(unsigned i = 0; i < width; i++){
                         yArrayPrev[i] = iFirstBin;
-                        yArrayCurr[i] = iFirstBin;
                     }
 
                     // Determine the yvalues to cut along, cut, then add the line to the stack
                     for(unsigned const& midPoint : midPoints){
-
-                        // Move the current array to the last array
-                        memcpy(yArrayPrev, yArrayCurr, width * sizeof(unsigned));
 
                         // Determine a line through each midpoint that seperates the lines
                         spaceTrace(yArrayCurr, imgDoc, midPoint);
 
                         png::image<png::gray_pixel> imgLine = staggeredYCrop(imgDoc, yArrayPrev, yArrayCurr, yPadding);
                         imgLines.push_back(imgLine);
+
+                        // Move the current array to the last array
+                        memcpy(yArrayPrev, yArrayCurr, width * sizeof(unsigned));
                     }
 
                     // Set the last yarray to be a straight line at the last non-zero bin
