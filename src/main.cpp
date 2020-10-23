@@ -3,7 +3,7 @@
 
 #include <iostream>
 
-void cleanDocuments(char const* documentsDirectory, char const* documentsCleanedDirectory){
+void cleanIAMDocuments(char const* documentsDirectory, char const* documentsCleanedDirectory){
 
     // Check that the data documents are on file, and
     // make an ouput directory if we need it
@@ -30,7 +30,7 @@ void cleanDocuments(char const* documentsDirectory, char const* documentsCleaned
                 std::cout << "Cleaning file ("<<iFile<<"/"<<numFiles<<")\""<<filename<<"\"." << std::endl;
                 png::image<png::gray_pixel> imgDoc(documentPath);
 
-                png::image<png::gray_pixel> imgDocClean = preProcessDocument(imgDoc);
+                png::image<png::gray_pixel> imgDocClean = cleanIAMDocument(imgDoc);
 
                 // Use dimension ratio as a sanity check, if its too wide something went wrong
                 float const ratio = (float)imgDocClean.get_width() / (float)imgDocClean.get_height();
@@ -58,7 +58,7 @@ int main(int argc, char const *argv[]){
     char const* documentsDirectory = "data/IAM/documents/";
     char const* documentsCleanedDirectory = "data/IAM/documentsCleaned/";
 
-    cleanDocuments(documentsDirectory, documentsCleanedDirectory);
+    cleanIAMDocuments(documentsDirectory, documentsCleanedDirectory);
 
     return 0;
 }

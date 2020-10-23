@@ -2,31 +2,82 @@
 #define IMAGEPROCESSING_H_DEFINED
 
 #include "utils.h"
-
 #include "png.hpp"
+
+/*
+ * Misc
+ */
+
+// Draws a smile image to the address specified
+void drawASmile(char const* addrOut);
+void drawASmile(std::string addrOut);
+
+// Function to create Gaussian kernel on length n
+template<class T>
+T** gaussiankernel(unsigned const masklength, T const sigma);
+
+/*
+ * Cropping
+ */
+
+// Crops a given image at the specified coordinates
+png::image<png::gray_pixel> crop(png::image<png::gray_pixel> const &img, unsigned const x0, unsigned const x1, unsigned const y0, unsigned const y1);
+
+// Crops the image between two staggered y bounds
+//  - Fills the empty space with whitespace
+// USAGE:
+// Requires two arrays that span the width and specify the top and bottom y values respecively
+// (Optional) padding field that will add whitespace above and below the highest and lowest y points
+png::image<png::gray_pixel> staggeredYCrop(png::image<png::gray_pixel> const& img, std::vector<unsigned> const& yTopArray, std::vector<unsigned> const& yBotArray, unsigned const yPadding = 0);
+
+// Crops the image between two staggered x bounds
+//  - Fills the empty space with whitespace
+// USAGE:
+// Requires two arrays that span the width and specify the top and bottom x values respecively
+// (Optional) padding field that will add whitespace above and below the highest and lowest x points
+png::image<png::gray_pixel> staggeredXCrop(png::image<png::gray_pixel> const& img, std::vector<unsigned> const& xTopArray, std::vector<unsigned> const& xBotArray, unsigned const xPadding = 0);
+
+/*
+ * Segmentation
+ */
+
+// Segment the image into black and white using a fixed threshold
+png::image<png::gray_pixel> segmentImageThreshold(png::image<png::gray_pixel> const &imgSrc, unsigned const T);
+
+// Segment the image into black and white using Kittlers method
+unsigned determineKittlerThreshold(png::image<png::gray_pixel> const &imgSrc);
+
+/*
+ * Histograms
+ */
+
+// Create a histogram of the horizontal projection of a grayscale image
+std::vector<unsigned> horizontalProjectionHistogram(png::image<png::gray_pixel> const &img, unsigned const thresh = 64, unsigned const binWidth = 1);
+
+// Create a histogram of the horizontal projection of a grayscale image (normalizes the output)
+// "depth" specify float vs double
+template<typename depth>
+std::vector<depth> horizontalProjectionHistogramNorm(png::image<png::gray_pixel> const &img, unsigned const thresh = 64, unsigned const binWidth = 1);
+
+// Create a histogram of the vertical projection of a grayscale image
+std::vector<unsigned> verticalProjectionHistogram(png::image<png::gray_pixel> const &img, unsigned const thresh = 64, unsigned const binWidth = 1);
+
+// Create a histogram of the vertical projection of a grayscale image (normalizes the output)
+// "depth" specify float vs double
+template<typename depth>
+std::vector<depth> verticalProjectionHistogramNorm(png::image<png::gray_pixel> const &img, unsigned const thresh = 64, unsigned const binWidth = 1);
+
+// Get a list of midpoints from a given histogram
+std::vector<unsigned> getMidPoints(std::vector<unsigned> hist, unsigned minBinCount);
+
+/*
+ * GRADIENTS
+ */
 
 enum gradType{
     SOBEL,
     MEDIAN
 };
-
-// -----------------
-// Image Misc
-// -----------------
-
-// Loads a png file from the specified location
-// Will read as a grayscale 8-bit image
-png::image<png::gray_pixel> loadPNG(char const* addr);
-
-// Draws a smile image to the address specified
-void drawASmile(char const* addrOut);
-
-// -----------------
-// Image Analysis
-// -----------------
-
-// Segment the document image into a list of line images
-std::vector<png::image<png::gray_pixel>> lineSegmentation(png::image<png::gray_pixel> const &imgDoc);
 
 /*
          [-1][0][1]       [-1][-2][-1]  
@@ -64,44 +115,14 @@ tuple2<float> computeDirectionalGradientVector_sobel(png::image<png::gray_pixel>
 float computeGradientVector_median(png::image<png::gray_pixel> const &image, unsigned const r, unsigned const c, unsigned const width, unsigned const height);
 tuple2<float> computeDirectionalGradientVector_median(png::image<png::gray_pixel> const &image, unsigned const r, unsigned const c, unsigned const width, unsigned const height);
 
-// Populates a directional gradient map based on the provided image
-void populateDirectionalGradientMap(tuple2<float>** gradMap, png::image<png::gray_pixel> const &image, gradType const gradientType);
-
 // Populates a gradient map based on the provided image
-void populateGradientMap(tuple2<float>** gradMap, png::image<png::gray_pixel> const &image, gradType const gradientType);
+std::vector<std::vector<float>> generateGradientMap(png::image<png::gray_pixel> const &image, gradType const gradientType = SOBEL);
+// Populates a directional gradient map based on the provided image, read (Gx, Gy)
+std::vector<std::vector<tuple2<float>>> generateDirectionalGradientMap(png::image<png::gray_pixel> const &image, gradType const gradientType = SOBEL);
 
-// Populates a boolean edge map based on the provided image
-void populateEdgeMap(bool** edgeMap, png::image<png::gray_pixel> const &image, gradType const gradientType, float const threshold);
-
-// Draws an edgemap as a png
-png::image<png::gray_pixel> imageFromEdgeMap(bool** edgeMap, unsigned const height, unsigned const width);
-
-// Create a histogram of the horizontal projection of a grayscale image
-void horizontalProjectionHistogram(unsigned* hist, png::image<png::gray_pixel> const &img, unsigned const thresh = 64);
-
-// Create a histogram of the horizontal projection of a grayscale image (normalizes the output)
-void horizontalProjectionHistogramNorm(double* hist, png::image<png::gray_pixel> const &img, unsigned const thresh = 64);
-
-// Create a histogram of the vertical projection of a grayscale image
-void verticalProjectionHistogram(unsigned* hist, png::image<png::gray_pixel> const &img, unsigned const thresh = 64);
-
-// Create a histogram of the vertical projection of a grayscale image (normalizes the output)
-void verticalProjectionHistogramNorm(double* hist, png::image<png::gray_pixel> const &img, unsigned const thresh = 64);
-
-// -----------------
-// Image processing
-// -----------------
-
-// Traces along the given midpoint in the given image and populates the yArray with 
-// the y values needed to segment the image at the midpoint
-void spaceTrace(unsigned* yArray, png::image<png::gray_pixel> const& img, unsigned const midPoint);
-
-// Crops the image between two staggered y bounds
-//  - Fills the empty space with whitespace
-// USAGE:
-// Requires two arrays that span the width and specify the top and bottom y values respecively
-// (Optional) padding field that will add whitespace above and below the highest and lowest y points
-png::image<png::gray_pixel> staggeredYCrop(png::image<png::gray_pixel> const& img, unsigned const* yTopArray, unsigned const* yBotArray, unsigned const yPadding = 0);
+/*
+ * Document Cleaning
+ */
 
 // Find the yMin and yMax values for the handwritten part of an IAM dataset text document
 // NOTE: Cuttoff is made at the line segments, there are 2 on the top and one on the bottom
@@ -113,20 +134,20 @@ png::image<png::gray_pixel> staggeredYCrop(png::image<png::gray_pixel> const& im
 //           *Handwritten text*
 //           *Handwritten text*
 //           -------------------
-tuple4<unsigned> findTextBounds(png::image<png::gray_pixel> const &img);
+tuple4<unsigned> findIAMTextBounds(png::image<png::gray_pixel> const &img);
 
 // Cleans a document from the IAM dataset
 // - Crops out everything but the centered text
-png::image<png::gray_pixel> preProcessDocument(png::image<png::gray_pixel> const &img);
+png::image<png::gray_pixel> cleanIAMDocument(png::image<png::gray_pixel> const &img);
 
-// Segment the image into black and white using a fixed threshold
-png::image<png::gray_pixel> segmentImageThreshold(png::image<png::gray_pixel> const &imgSrc, unsigned const T);
+/*
+ * Image Filtering
+ */
 
-// Segment the image into black and white using Kittlers method
-unsigned determineKittlerThreshold(png::image<png::gray_pixel> const &imgSrc);
+// Create edgemap from the given image
+png::image<png::gray_pixel> edgeMapImg(png::image<png::gray_pixel> const &img, gradType const gradientType=SOBEL, float const threshold=60);
 
-// Function to create Gaussian kernel on length n
-template<class T>
-T** gaussiankernel(unsigned const masklength, T const sigma);
+// Process that fills in the gaps on our edgemaps
+png::image<png::gray_pixel> erodeImg(png::image<png::gray_pixel> const& imgDoc, unsigned const kernelRadius=3);
 
 #endif
