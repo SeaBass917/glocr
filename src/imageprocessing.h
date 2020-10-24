@@ -68,7 +68,7 @@ template<typename depth>
 std::vector<depth> verticalProjectionHistogramNorm(png::image<png::gray_pixel> const &img, unsigned const thresh = 64, unsigned const binWidth = 1);
 
 // Get a list of midpoints from a given histogram
-std::vector<unsigned> getMidPoints(std::vector<unsigned> hist, unsigned minBinCount);
+std::vector<unsigned> getMidPoints(std::vector<unsigned> hist, unsigned minBinCount, unsigned const minGapThresh=0);
 
 /*
  * GRADIENTS

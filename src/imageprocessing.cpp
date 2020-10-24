@@ -486,7 +486,7 @@ std::vector<depth> verticalProjectionHistogramNorm(png::image<png::gray_pixel> c
     return hist;
 }
 
-std::vector<unsigned> getMidPoints(std::vector<unsigned> hist, unsigned const minBinCount){
+std::vector<unsigned> getMidPoints(std::vector<unsigned> hist, unsigned const minBinCount, unsigned const minGapThresh){
     
     unsigned const histLen = hist.size();
 
@@ -513,13 +513,18 @@ std::vector<unsigned> getMidPoints(std::vector<unsigned> hist, unsigned const mi
     if((numTransitions & 1) == 0){
 
         // Get a list of the midpoints
-        std::vector<unsigned> midPoints(numMidPoints);
-        for(unsigned i=2, ii=0; i < numTransitions; i+=2, ii++){
-            int midPoint = (transitionPoints[i] + transitionPoints[i-1])/2;
-            if(midPoint < 0){   // NOTE: In the case where the transition is the start of the img, we will get -1 here
-                midPoint = 0;
+        std::vector<unsigned> midPoints;
+        for(unsigned i=2; i < numTransitions; i+=2){
+            int tp = transitionPoints[i];
+            int tpPrev = transitionPoints[i-1];
+            int midPoint = (tp + tpPrev)/2;
+            int gapDistance = tp - tpPrev;
+            if(minGapThresh <= gapDistance){
+                if(midPoint < 0){   // NOTE: In the case where the transition is the start of the img, we will get -1 here
+                    midPoint = 0;
+                }
+                midPoints.push_back(midPoint);
             }
-            midPoints[ii] = midPoint;
         }
 
         return midPoints;

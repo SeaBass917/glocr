@@ -8,7 +8,8 @@
 png::image<png::gray_pixel> preProcessDocumentImage(png::image<png::gray_pixel> const& imgDoc){
     
     png::image<png::gray_pixel> imgEdges = edgeMapImg(imgDoc);
-    png::image<png::gray_pixel> imgEroded = erodeImg(imgDoc, 3);
+    png::image<png::gray_pixel> imgEroded = erodeImg(imgEdges, 3);
+    imgEroded.write("../eroded.png");
     
     return imgEroded;
 }
@@ -22,8 +23,8 @@ std::vector<std::vector<png::image<png::gray_pixel>>> wordSegmentation(png::imag
     unsigned const yPadding = 25u;                          // Number of pixels to pad the output with in the y direction
     unsigned const xPadding = 25u;                          // Number of pixels to pad the output with in the x direction
     unsigned const numColumnsForHist = 750u;                // Number of lefthand columns to use for the histogram projection
-    unsigned const histBinWidth = 25u;                      // Helps with forgiving smaller gaps in a word
-    unsigned const histBinWidthHalf = histBinWidth / 2;     // for centering the midpoint after hist bin change
+    // unsigned const histBinWidth = 25u;                      // Helps with forgiving smaller gaps in a word
+    // unsigned const histBinWidthHalf = histBinWidth / 2;     // for centering the midpoint after hist bin change
     
     // Image dimensions
     unsigned const height = imgDoc.get_height();
@@ -50,7 +51,7 @@ std::vector<std::vector<png::image<png::gray_pixel>>> wordSegmentation(png::imag
     // Determine the first and last non-zero bins
     // NOTE: the padding is applied here
     int yFirstBin = 0;
-    int yLastBin = height-1;
+    int yLastBin  = height-1;
     for(unsigned i = 0; i < height-1; i++){
         if(0 < histHorizontal[i]){
             yFirstBin = i - yPadding;
@@ -121,10 +122,13 @@ std::vector<std::vector<png::image<png::gray_pixel>>> wordSegmentation(png::imag
 
         std::vector<unsigned> histVertical = verticalProjectionHistogram(
             imgLinePreProc,
-            histThreshold,
-            histBinWidth
+            histThreshold
         );
         unsigned histVerticalLength = histVertical.size();
+
+        // for(unsigned i = 0; i < histVertical.size(); i++)
+        //     std::cout << i << "," << histVertical[i] << std::endl;
+        // std::cout << std::endl << std::endl;
 
         // Determine the first and last non-zero bins
         // NOTE: the padding is applied here
@@ -132,7 +136,7 @@ std::vector<std::vector<png::image<png::gray_pixel>>> wordSegmentation(png::imag
         int xLastBin = histVerticalLength-1;
         for(unsigned i = 0; i < histVerticalLength-1; i++){
             if(0 < histVertical[i]){
-                xFirstBin = i * histBinWidth - xPadding;
+                xFirstBin = i - xPadding;
                 if(xFirstBin < 0){
                     xFirstBin = 0;
                 }
@@ -141,7 +145,7 @@ std::vector<std::vector<png::image<png::gray_pixel>>> wordSegmentation(png::imag
         }
         for(unsigned i = histVerticalLength-1; 0 < i; i--){
             if(0 < histVertical[i]){
-                xLastBin = i * histBinWidth + xPadding;
+                xLastBin = i + xPadding;
                 if(width <= xLastBin){
                     xLastBin = width-1;
                 }
@@ -150,12 +154,12 @@ std::vector<std::vector<png::image<png::gray_pixel>>> wordSegmentation(png::imag
         }
 
         // Determine the midpoints between each word
-        std::vector<unsigned> midPointsX = getMidPoints(histVertical, minBinCountX);
+        std::vector<unsigned> midPointsX = getMidPoints(histVertical, minBinCountX, 25);
         unsigned numWords = midPointsX.size() + 1;
 
         // Adjust midpoints based on histogram bin width
         for(unsigned i = 0; i < midPointsX.size(); i++){
-            unsigned midPoint = midPointsX[i] * histBinWidth + histBinWidthHalf;
+            unsigned midPoint = midPointsX[i];
             midPointsX[i] = (width <= midPoint)? width-1 : midPoint;
         }
         
