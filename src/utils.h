@@ -11,6 +11,7 @@
  */
 
 #include <filesystem>
+#include <vector>
 namespace fs = std::filesystem;
 
 /*
@@ -71,6 +72,13 @@ std::string toLower(std::string s);
 /*
  * Maths
  */
+
+// Stats on floating vectors
+float sumv(std::vector<float> a);
+float avgv(std::vector<float> a);
+float minv(std::vector<float> a);
+float maxv(std::vector<float> a);
+float medianv(std::vector<float> a);
 
 // Returns the median value of the given list
 unsigned median(unsigned* a, unsigned len);

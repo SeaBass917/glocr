@@ -2,12 +2,61 @@
 #include "imageprocessing.h"
 
 /*
+ * IAM Utilities
+ */
+
+std::map<std::string, std::array<unsigned, 7>> loadIAMDocumentsMetadata(std::string metaDataPath){
+    
+    // Open the metadata file
+    std::ifstream fp(metaDataPath);
+    if(fp){
+
+        std::map<std::string, std::array<unsigned, 7>> metaData;
+
+        // Parse each line, skip comments #---, read the fields into the array
+        std::string line;
+        while (std::getline(fp, line)) {
+            if(line[0] == '#') continue;
+            else{
+                unsigned const i0 = line.find(' ');
+                unsigned const i1 = line.find(' ', i0+1);
+                unsigned const i2 = line.find(' ', i1+1);
+                unsigned const i3 = line.find(' ', i2+1);
+                unsigned const i4 = line.find(' ', i3+1);
+                unsigned const i5 = line.find(' ', i4+1);
+                unsigned const i6 = line.find(' ', i5+1);
+                unsigned const i7 = line.size();
+                
+                std::string const docID = line.substr(0, i0);
+                unsigned const writerID = std::stoi(line.substr(i0+1, i1 - (i0+1)));
+                unsigned const numSent = std::stoi(line.substr(i1+1, i2 - (i1+1)));
+                std::string const segQualStr = line.substr(i2+1, i3 - (i2+1));
+                unsigned const segQual = (segQualStr == "all")? ALL : PRT;
+                unsigned const numLines = std::stoi(line.substr(i3+1, i4 - (i3+1)));
+                unsigned const numLinesGood = std::stoi(line.substr(i4+1, i5 - (i4+1)));
+                unsigned const numWords = std::stoi(line.substr(i5+1, i6 - (i5+1)));
+                unsigned const numWordsGood = std::stoi(line.substr(i6+1, i7 + (i6+1)));
+
+                metaData[docID] = {writerID, numSent, segQual, numLines, numLinesGood, numWords, numWordsGood};
+            }
+        }
+
+        return metaData;
+    }
+    else{
+        std::cerr << "\tWARNING! Cannot access \""<<metaDataPath<<"\". Could not load IAM document metadata." << std::endl; 
+        throw std::exception();
+    }
+}
+
+/*
  * Segmentation
  */
 
 png::image<png::gray_pixel> preProcessDocumentImage(png::image<png::gray_pixel> const& imgDoc){
     
-    png::image<png::gray_pixel> imgEdges = edgeMapImg(imgDoc);
+    png::image<png::gray_pixel> imgEdges = edgeMapImg(imgDoc, SOBEL, 30);
+    imgEdges.write("../edges.png");
     png::image<png::gray_pixel> imgEroded = erodeImg(imgEdges, 3);
     imgEroded.write("../eroded.png");
     
@@ -17,14 +66,15 @@ png::image<png::gray_pixel> preProcessDocumentImage(png::image<png::gray_pixel> 
 std::vector<std::vector<png::image<png::gray_pixel>>> wordSegmentation(png::image<png::gray_pixel> const &imgDoc){
 
     unsigned const histThreshold = 127u;                    // Minimum intensity for the histogram to count a pixel
-    unsigned const minBinCountY = 5u;                        // minBinCount before the histogram supresses that bin
-    unsigned const minBinCountX = 1u;                        // minBinCount before the histogram supresses that bin
+    unsigned const peakThresholdY = 55u;                      // Minumum threshold for a hist peak to be considered a line
+    unsigned const peakThresholdX = 1u;                       // Minumum threshold for a hist peak to be considered a word
+    unsigned const minNoiseFloorY = 1u;                     // Floor that is considered the bounds of a line
+    unsigned const minNoiseFloorX = 0u;                     // Floor that is considered the bounds of a word
     unsigned const edgeMapThreshold = 60u;                  // Threshold for the edge map to use
-    unsigned const yPadding = 25u;                          // Number of pixels to pad the output with in the y direction
-    unsigned const xPadding = 25u;                          // Number of pixels to pad the output with in the x direction
-    unsigned const numColumnsForHist = 750u;                // Number of lefthand columns to use for the histogram projection
-    // unsigned const histBinWidth = 25u;                      // Helps with forgiving smaller gaps in a word
-    // unsigned const histBinWidthHalf = histBinWidth / 2;     // for centering the midpoint after hist bin change
+    unsigned const yPadding = 5u;                          // Number of pixels to pad the output with in the y direction
+    unsigned const xPadding = 5u;                          // Number of pixels to pad the output with in the x direction
+    unsigned const numColumnsForHist = 450u;                // Number of lefthand columns to use for the histogram projection
+    unsigned const minWordSpacing = 18u;                    // Min spacing that will be called a seperate word
     
     // Image dimensions
     unsigned const height = imgDoc.get_height();
@@ -35,6 +85,7 @@ std::vector<std::vector<png::image<png::gray_pixel>>> wordSegmentation(png::imag
     // ---------------
 
     png::image<png::gray_pixel> imgDocPreProc = preProcessDocumentImage(imgDoc);
+    crop(imgDocPreProc, 0, numColumnsForHist, 0, height-1).write("/home/seabass/extra/pprocimg.png");
 
     // -------------------------
     // Determine Line Midpoints
@@ -53,7 +104,15 @@ std::vector<std::vector<png::image<png::gray_pixel>>> wordSegmentation(png::imag
     int yFirstBin = 0;
     int yLastBin  = height-1;
     for(unsigned i = 0; i < height-1; i++){
-        if(0 < histHorizontal[i]){
+        bool isEdgeInRow = false;
+        std::vector<png::gray_pixel> row = imgDocPreProc[i];
+        for(unsigned j = 0; j < width; j++){
+            if(row[j] < histThreshold){
+                isEdgeInRow = true;
+                break;
+            }
+        }
+        if(isEdgeInRow){
             yFirstBin = i - yPadding;
             if(yFirstBin < 0){
                 yFirstBin = 0;
@@ -62,7 +121,15 @@ std::vector<std::vector<png::image<png::gray_pixel>>> wordSegmentation(png::imag
         }
     }
     for(unsigned i = height-1; 0 < i; i--){
-        if(0 < histHorizontal[i]){
+        bool isEdgeInRow = false;
+        std::vector<png::gray_pixel> row = imgDocPreProc[i];
+        for(unsigned j = 0; j < width; j++){
+            if(row[j] < histThreshold){
+                isEdgeInRow = true;
+                break;
+            }
+        }
+        if(isEdgeInRow){
             yLastBin = i + yPadding;
             if(height <= yLastBin){
                 yLastBin = height-1;
@@ -72,8 +139,8 @@ std::vector<std::vector<png::image<png::gray_pixel>>> wordSegmentation(png::imag
     }
 
     // Determine the midpoints between each line
-    std::vector<unsigned> midPointsY = getMidPoints(histHorizontal, minBinCountY);
-    unsigned numLines = midPointsY.size() + 1;
+    std::vector<tuple2<int>> midPointBoundsY = getMidPointBounds(histHorizontal, peakThresholdY, minNoiseFloorY);
+    unsigned numLines = midPointBoundsY.size() + 1;
 
     // -----------------------------
     // Trace through Line Midpoints
@@ -91,12 +158,12 @@ std::vector<std::vector<png::image<png::gray_pixel>>> wordSegmentation(png::imag
     // Initialize the current yarray to be a straight line at the first non-zero bin
     unsigned iMPY = 1;
     yArrays[0] = std::vector<unsigned>(width, yFirstBin);
-    for(unsigned const& midPoint : midPointsY){
+    for(tuple2<int> const& midPointBounds : midPointBoundsY){
 
         // Determine a line through each midpoint that seperates the lines
         // Used that line to crop out the next line
         // NOTE: Opeation is repeated on both the preprocessed doc and the og
-        yArrays[iMPY] = spaceTraceHorizontal(imgDocPreProc, midPoint);
+        yArrays[iMPY] = spaceTraceHorizontal(imgDocPreProc, midPointBounds._0, midPointBounds._1);
         imgLinesPreProc[iMPY-1] = staggeredYCrop(imgDocPreProc, yArrays[iMPY-1], yArrays[iMPY], yPadding);
         imgLines[iMPY-1] = staggeredYCrop(imgDoc, yArrays[iMPY-1], yArrays[iMPY], yPadding);
         
@@ -154,14 +221,8 @@ std::vector<std::vector<png::image<png::gray_pixel>>> wordSegmentation(png::imag
         }
 
         // Determine the midpoints between each word
-        std::vector<unsigned> midPointsX = getMidPoints(histVertical, minBinCountX, 25);
-        unsigned numWords = midPointsX.size() + 1;
-
-        // Adjust midpoints based on histogram bin width
-        for(unsigned i = 0; i < midPointsX.size(); i++){
-            unsigned midPoint = midPointsX[i];
-            midPointsX[i] = (width <= midPoint)? width-1 : midPoint;
-        }
+        std::vector<tuple2<int>> midPointBoundsX = getMidPointBounds(histVertical, peakThresholdX, minNoiseFloorX, minWordSpacing);
+        unsigned numWords = midPointBoundsX.size() + 1;
         
         // For storing staggered X values that segment each line
         std::vector<std::vector<unsigned>> xArrays(numWords+1);
@@ -173,11 +234,11 @@ std::vector<std::vector<png::image<png::gray_pixel>>> wordSegmentation(png::imag
         // Initialize the current yarray to be a straight line at the first non-zero bin
         unsigned iMPX = 1;
         xArrays[0] = std::vector<unsigned>(height, xFirstBin);
-        for(unsigned const& midPoint : midPointsX){
+        for(tuple2<int> const& midPointBounds : midPointBoundsX){
 
             // Determine a line through each midpoint that seperates the lines
             // Used that line to crop out the next line
-            xArrays[iMPX] = spaceTraceVertical(imgLinePreProc, midPoint);
+            xArrays[iMPX] = spaceTraceVertical(imgLinePreProc, midPointBounds._0, midPointBounds._1);
             imgWords[iMPX-1] = staggeredXCrop(imgLine, xArrays[iMPX-1], xArrays[iMPX], yPadding);
             iMPX++;
         }
@@ -199,36 +260,163 @@ std::vector<std::vector<png::image<png::gray_pixel>>> wordSegmentation(png::imag
  * Tracing
  */
 
-std::vector<unsigned> spaceTraceHorizontal(png::image<png::gray_pixel> const& img, unsigned const midPoint){
+std::vector<unsigned> spaceTraceHorizontal(png::image<png::gray_pixel> const& img, unsigned const yMin, unsigned const yMax){
+
+    unsigned const minHistThreshold = 3;    // Minimum count for a bin to be considered populated
 
     // Img info
-    unsigned height = img.get_height();
-    unsigned width = img.get_width();
+    unsigned const height = img.get_height();
+    unsigned const width = img.get_width();
 
-    std::vector<unsigned> yArray(width);
+    // Histogram will have 3 bins in between the yMin and yMax
+    // (yMin)|       |(y0)|       |(y1)|       |(yMax)
+    float const dy = (yMax - yMin) / 3.0f;
+    unsigned const y0 = (unsigned)(yMin + dy);
+    unsigned const y1 = (unsigned)(y0 + dy);
+    unsigned hist[3] = {0};
 
-    // TODO: tracing
-    // DEBUG
-    for(unsigned i = 0; i < width; i++){
-        yArray[i] = midPoint;
+    // Precompute the midpoints inside the bins
+    unsigned const midPointHigh = (yMin + y0) / 2;
+    unsigned const midPointMid = (y0 + y1) / 2;
+    unsigned const midPointLow = (y1 + yMax) / 2;
+
+    // Saftey code
+    if(yMin < yMax){
+        if(yMax < height){
+
+            // Sweep from left to right
+            //   on finding an edge
+            //   begin a histogram until edges stop
+            //   draw a mipoint based on the histogram
+            //   
+            std::vector<unsigned> yArray(width);
+            unsigned x = 0;
+            while(x < width){
+
+                // yArray[x] = midPointMid;
+                // x++;
+                // continue;
+
+                // Look for an edge (pixel == 0)
+                bool edgeFound = false;
+                for(unsigned y = yMin; y <= yMax; y++){
+                    if(img[y][x] < 127){
+                        edgeFound = true;
+                        break;
+                    }
+                }
+
+                // Move forward building a 3bin histogram along the way
+                // build until no edges found
+                // Bisect the lines based on histogram cases
+                if(edgeFound){
+                    hist[0] = 0;
+                    hist[1] = 0;
+                    hist[2] = 0;
+
+                    // Break when we hit the end of image of stop seeing edges
+                    edgeFound = true;
+                    unsigned xx = x; // NOTE we need a seperate xx var so we can update the yArray after from x -> xx
+                    while(xx < width && edgeFound){
+
+                        // Fill hist
+                        edgeFound = false;
+                        for(unsigned y = yMin; y < y0; y++){
+                            if(img[y][xx] < 127){
+                                hist[0]++;
+                                edgeFound = true;
+                            }
+                        }
+                        for(unsigned y = y0; y < y1; y++){
+                            if(img[y][xx] < 127){
+                                hist[1]++;
+                                edgeFound = true;
+                            }
+                        }
+                        for(unsigned y = y1; y <= yMax; y++){
+                            if(img[y][xx] < 127){
+                                hist[2]++;
+                                edgeFound = true;
+                            }
+                        }
+
+                        xx++;
+                    }
+
+                    // Determine the midpoint for each case in the histogram
+                    unsigned midPoint = midPointMid;
+                    if(minHistThreshold < hist[0]){
+                        if(minHistThreshold < hist[1]){
+                            if(minHistThreshold < hist[2]){
+                                midPoint = yMax;
+                            }
+                            else{
+                                midPoint = midPointLow;
+                            }
+                        }
+                        else{
+                            midPoint = midPointMid;
+                        }
+                    }
+                    else{
+                        midPoint = midPointHigh;
+                    }
+
+                    // Update yArray
+                    // NOTE: this also updates the main x variable 
+                    // NOTE: we dont write to xx, as it is past the edges
+                    for(x; x < xx; x++){
+                        yArray[x] = midPoint;
+                    }
+                }
+                else{
+                    yArray[x] = midPointMid;
+                    x++;
+                }
+            }
+
+            return yArray;
+        }
+        else{
+            std::cerr << "\tERROR! In spaceTraceHorizontal() yMax: "<<yMax<<" goes outside height bounds of image with height: "<<height<<"." << std::endl;
+            throw std::exception();
+        }
     }
-
-    return yArray;
+    else{
+        std::cerr << "\tERROR! In spaceTraceHorizontal() yMin: "<<yMin<<" needs to be less than than yMax: "<<yMax<<"." << std::endl;
+        throw std::exception();
+    }
 }
 
-std::vector<unsigned> spaceTraceVertical(png::image<png::gray_pixel> const& img, unsigned const midPoint){
+std::vector<unsigned> spaceTraceVertical(png::image<png::gray_pixel> const& img, unsigned const xMin, unsigned const xMax){
 
     // Img info
-    unsigned height = img.get_height();
-    unsigned width = img.get_width();
+    unsigned const height = img.get_height();
+    unsigned const width = img.get_width();
+    unsigned const midPoint = (xMin + xMax) / 2;
 
-    std::vector<unsigned> xArray(height);
+    // Saftey code
+    if(xMin < xMax){
+        if(xMax < width){
 
-    // TODO: tracing
-    // DEBUG
-    for(unsigned i = 0; i < height; i++){
-        xArray[i] = midPoint;
+            std::vector<unsigned> xArray(height);
+
+            // TODO: tracing
+            // DEBUG
+            for(unsigned i = 0; i < height; i++){
+                xArray[i] = midPoint;
+            }
+
+            return xArray;
+
+        }
+        else{
+            std::cerr << "\tERROR! In spaceTraceVertical() xMax: "<<xMax<<" goes outside width bounds of image with width: "<<width<<"." << std::endl;
+            throw std::exception();
+        }
     }
-
-    return xArray;
+    else{
+        std::cerr << "\tERROR! In spaceTraceVertical() xMin: "<<xMin<<" needs to be less than than xMax: "<<xMax<<"." << std::endl;
+        throw std::exception();
+    }
 }

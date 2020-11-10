@@ -2,6 +2,18 @@
 #define IMAGESEGMENTATION_H_DEFINED
 
 #include "png.hpp"
+#include <map>
+
+/*
+ * IAM Utilities
+ */
+
+enum segQuality{
+    PRT = 0,    // some lines correctly segmented
+    ALL = 1     // all lines correctly segmented
+};
+
+std::map<std::string, std::array<unsigned, 7>> loadIAMDocumentsMetadata(std::string metaDataPath);
 
 /*
  * Segmentation
@@ -19,10 +31,10 @@ std::vector<std::vector<png::image<png::gray_pixel>>> wordSegmentation(png::imag
 
 // Traces along the given midpoint in the given image and populates the yArray with 
 // the y values needed to segment the image at the midpoint
-std::vector<unsigned> spaceTraceHorizontal(png::image<png::gray_pixel> const& img, unsigned const midPoint);
+std::vector<unsigned> spaceTraceHorizontal(png::image<png::gray_pixel> const& img, unsigned const yMin, unsigned const yMax);
 
 // Traces along the given midpoint in the given image and populates the xArray with 
 // the x values needed to segment the image at the midpoint
-std::vector<unsigned> spaceTraceVertical(png::image<png::gray_pixel> const& img, unsigned const midPoint);
+std::vector<unsigned> spaceTraceVertical(png::image<png::gray_pixel> const& img, unsigned const xMin, unsigned const xMax);
 
 #endif

@@ -74,6 +74,34 @@ std::string toLower(std::string s){
  * Maths
  */
 
+float sumv(std::vector<float> a){
+    float total = 0.0f;
+    for(float& x : a)
+        total += x;
+    return total;
+}
+float avgv(std::vector<float> a){
+    float total = sumv(a);
+    return total / (float)a.size();
+}
+float minv(std::vector<float> a){
+    float min = std::numeric_limits<float>::max();
+    for(float& x : a)
+        if(x < min) min = x;
+    return min;
+}
+float maxv(std::vector<float> a){
+    float max = -std::numeric_limits<float>::max();
+    for(float& x : a)
+        if(max < x) max = x;
+    return max;
+}
+float medianv(std::vector<float> a){
+    sort(a.begin(), a.end());
+    unsigned iHalf = a.size() / 2;
+    return a[iHalf];
+}
+
 unsigned median(unsigned* a, unsigned len){
     std::sort(a, a+len);
     unsigned iHalf = len / 2;

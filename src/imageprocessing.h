@@ -14,7 +14,7 @@ void drawASmile(std::string addrOut);
 
 // Function to create Gaussian kernel on length n
 template<class T>
-T** gaussiankernel(unsigned const masklength, T const sigma);
+std::vector<std::vector<T>> gaussiankernel(unsigned const masklength, T const sigma);
 
 /*
  * Cropping
@@ -67,8 +67,8 @@ std::vector<unsigned> verticalProjectionHistogram(png::image<png::gray_pixel> co
 template<typename depth>
 std::vector<depth> verticalProjectionHistogramNorm(png::image<png::gray_pixel> const &img, unsigned const thresh = 64, unsigned const binWidth = 1);
 
-// Get a list of midpoints from a given histogram
-std::vector<unsigned> getMidPoints(std::vector<unsigned> hist, unsigned minBinCount, unsigned const minGapThresh=0);
+// Returns a list of the gap bounds [(low, high),...] between bases of histogram peaks
+std::vector<tuple2<int>> getMidPointBounds(std::vector<unsigned> hist, unsigned peakThreshold, unsigned const minNoiseFloor, unsigned const minGapThresh=0);
 
 /*
  * GRADIENTS

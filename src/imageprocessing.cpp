@@ -50,33 +50,29 @@ void drawASmile(std::string addrOut){
 }
 
 template<class T>
-T** gaussiankernel(unsigned const masklength, T const sigma){
+std::vector<std::vector<T>> gaussiankernel(unsigned const masklength, T const sigma){
 
-    T** kernel;
+    std::vector<std::vector<T>> kernel(masklength);
 
     // Mask length must be odd
     if(masklength & 1 == 1){
-
         const int radius = (masklength - 1) / 2;
 
         // intialising standard deviation
         T var = 2.0 * sigma * sigma;
         T denom = M_PI * var;
-    
-        // Allocating kernel 
-        kernel = (T**)malloc(masklength * sizeof(T*));
-        for (unsigned i = 0; i < masklength; i++){
-            kernel[i] = (T*)malloc(masklength * sizeof(T));
-        }
 
+        // Fill the kernel row by row
         T sum = 0.0; // sum is for normalization 
         for (int x = -radius; x <= radius; x++) {
+            std::vector<T> row(masklength);
             T rx = x * x;
             for (int y = -radius; y <= radius; y++) {
                 T Gxy = exp(-(rx + y * y) / var) / denom;
-                kernel[x + radius][y + radius] = Gxy;
+                row[y + radius] = Gxy;
                 sum += Gxy; 
             } 
+            kernel[x + radius] = row;
         }
 
         // normalising the Kernel 
@@ -486,24 +482,32 @@ std::vector<depth> verticalProjectionHistogramNorm(png::image<png::gray_pixel> c
     return hist;
 }
 
-std::vector<unsigned> getMidPoints(std::vector<unsigned> hist, unsigned const minBinCount, unsigned const minGapThresh){
+std::vector<tuple2<int>> getMidPointBounds(std::vector<unsigned> hist, unsigned const peakThreshold, unsigned const minNoiseFloor, unsigned const minGapThresh){
     
     unsigned const histLen = hist.size();
 
-    // Determine Traansition point
-    // -- points that go in->out of threshold and vice-versa
+    // Determine Transition points
+    // Look for a peak
+    // sweep out until hitting 0
     std::vector<int> transitionPoints;
-    bool isCurrZero = true;
-    bool isPrevZero = true;
-    for(unsigned i = 0; i < histLen; i++){
-        isPrevZero = isCurrZero;
-        isCurrZero = hist[i] < minBinCount;
-        if(isPrevZero && !isCurrZero || !isPrevZero && isCurrZero){
-            transitionPoints.push_back(i-1);
+    unsigned i = 0;
+    while(i < histLen){
+        if(peakThreshold < hist[i]){
+            for(int ii = i; 0 <= ii; ii--){
+                if(hist[ii] <= minNoiseFloor || 0 == ii){
+                    transitionPoints.push_back(ii);
+                    break;
+                }
+            }
+            for(i; i < histLen; i++){
+                if(hist[i] <= minNoiseFloor || i == histLen-1){
+                    transitionPoints.push_back(i);
+                    break;
+                }
+            }
         }
-    }
-    if(!isCurrZero){
-        transitionPoints.push_back(histLen-1);
+
+        i++;
     }
         
     // Check that the number of transition points makes sense
@@ -513,21 +517,18 @@ std::vector<unsigned> getMidPoints(std::vector<unsigned> hist, unsigned const mi
     if((numTransitions & 1) == 0){
 
         // Get a list of the midpoints
-        std::vector<unsigned> midPoints;
+        std::vector<tuple2<int>> midPointBounds;
         for(unsigned i=2; i < numTransitions; i+=2){
             int tp = transitionPoints[i];
             int tpPrev = transitionPoints[i-1];
-            int midPoint = (tp + tpPrev)/2;
             int gapDistance = tp - tpPrev;
             if(minGapThresh <= gapDistance){
-                if(midPoint < 0){   // NOTE: In the case where the transition is the start of the img, we will get -1 here
-                    midPoint = 0;
-                }
-                midPoints.push_back(midPoint);
+                tuple2<int> midPointBound = {tpPrev, tp};
+                midPointBounds.push_back(midPointBound);
             }
         }
 
-        return midPoints;
+        return midPointBounds;
     }
     else{
         std::cerr << "\tERROR! lineSegmentation() Found an odd number of segments. Cannot confidently segment document." << std::endl;
