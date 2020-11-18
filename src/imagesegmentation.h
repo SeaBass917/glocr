@@ -22,8 +22,17 @@ std::map<std::string, std::array<unsigned, 7>> loadIAMDocumentsMetadata(std::str
 // Includes steps: Sobel edge marking, and image eroding
 png::image<png::gray_pixel> preProcessDocumentImage(png::image<png::gray_pixel> const& imgDoc);
 
+// Steps:
+// a) edge detection
+// b) skeletonization
+// c) noise removal
+png::image<png::gray_pixel> preProcessWordImage(png::image<png::gray_pixel> const& imgDoc);
+
 // Returns a 2d list of word images from a given document
 std::vector<std::vector<png::image<png::gray_pixel>>> wordSegmentation(png::image<png::gray_pixel> const &imgDoc);
+
+// Returns a list of character images from the word image
+std::vector<png::image<png::gray_pixel>> charSegmentation(png::image<png::gray_pixel> const &imgword);
 
 /*
  * Tracing

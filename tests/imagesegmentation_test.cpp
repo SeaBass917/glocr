@@ -197,7 +197,7 @@ void wordSegmentation_test(std::string documentsDir, std::string metaDataPath, s
         std::string segmentedOutputDir = outputDir + "/" + docname + "/";
         std::string perfReportPath = segmentedOutputDir + "perfReport.txt";
 
-        std::cout << "Segmenting document: ("<<iDoc<<"/"<<numDocs<<") \""<<docname<<"\"." << std::endl;
+        std::cout << "Segmenting words in document: \""<<docname<<"\". ("<<iDoc<<"/"<<numDocs<<")" << std::endl;
         iDoc++;
 
         // Read in the info for this document
@@ -263,21 +263,97 @@ void wordSegmentation_test(std::string documentsDir, std::string metaDataPath, s
     }
 }
 
-int main(int argc, char const *argv[]){
+// Loop through each document
+// Make a folder for the document
+// Segment the characters into individual word sub directories
+// outputdir/doc0/w0/c0.png
+// outputdir/doc0/w0/c1.png
+// outputdir/doc0/w1/c0.png
+// ...
+// outputdir/doc1/w0/c0.png
+// ...
+void charSegmentation_test(std::string documentsDir, std::string outputDir, bool clearOutput){
+    
+    // Create or clear our working directory
+    if(!fs::exists(outputDir)) fs::create_directory(outputDir);
+    else if(clearOutput){
+        fs::remove_all(outputDir);
+        fs::create_directory(outputDir);
+    }
 
-    // Create a directory for doing tests
-    std::string testDir = "imagesegmentation_test/";
-    if(!fs::exists(testDir)) fs::create_directory(testDir);
+    // Count the number of documents so we can inform user
+    unsigned numDocs = 0;
+    for(auto& docDir : fs::directory_iterator(documentsDir))
+        if(fs::is_directory(docDir)) numDocs++;
+
+    // Loop through each document
+    unsigned iDoc = 1;
+    for(auto& docDirPath : fs::directory_iterator(documentsDir)){
+        if(fs::is_directory(docDirPath)){
+            std::string docname = docDirPath.path().filename();
+            std::string documentOutputDir = outputDir + "/" + docname + "/";
+            std::cout << "Segmenting characters in document: \""<<docname<<"\". ("<<iDoc<<"/"<<numDocs<<")" << std::endl;
+            iDoc++;
+
+            // Check if the output has already been computed (if it has, then skip this document)
+            bool isEmpty = true;
+            if((fs::exists(documentOutputDir))) {
+                unsigned cnt = 0;
+                for(auto& f : fs::recursive_directory_iterator(documentOutputDir))
+                    if(fs::is_regular_file(f))
+                        cnt++;
+                isEmpty = 0 == cnt;
+            }
+            else fs::create_directories(documentOutputDir); // NOTE: Make the directory if its not there
+            if(isEmpty){
+
+                // For each segmented word in the document
+                unsigned i_word = 0;
+                for(auto& wordFilePath : fs::directory_iterator(docDirPath)){
+                    std::string wordFilename = wordFilePath.path().filename();
+                    std::string wordname = getPathNoExtension(wordFilename);    // Name associated with the word (e.g. line_0-word_1)
+                    std::string wordPath = wordFilePath.path().string();
+                    std::string wordOutputDir = documentOutputDir + '/' + wordname + '/';
+                    if(toLower(getFileExtension(wordFilename)) == "png"){
+
+                        //Load the word image
+                        png::image<png::gray_pixel> img(wordPath);
+
+                        // Segment the word
+                        std::vector<png::image<png::gray_pixel>> charImgs = charSegmentation(img);
+
+                        // Store the resulting characters in our output directory
+                        unsigned i_char = 0;
+                        fs::create_directory(wordOutputDir);
+                        for(png::image<png::gray_pixel>& charImg : charImgs){
+                            std::string charOutputPath = wordOutputDir+"char_"+std::to_string(i_char)+".png";
+                            charImg.write(charOutputPath);
+                        }
+
+                        i_word++;
+                    }
+                }
+            }
+        }
+    }
+
+}
+
+int main(int argc, char const *argv[]){
 
     // Test word segmentation in its own sub directory
     std::string documentsDir = "/home/seabass/extra/IAM/documentsCleaned_small";
     std::string metaDataPath = "/home/seabass/extra/IAM/metadata/documents.txt";
-    std::string outputDir = "/home/seabass/extra/IAM/documentsSegmented_small";
+    std::string output0Dir = "/home/seabass/extra/IAM/documentsSegmented_small";
     bool clearOutput = false;   // On True: Will wipe the output directory instead of continuing from last run point
-    wordSegmentation_test(documentsDir, metaDataPath, outputDir, clearOutput);
+    // wordSegmentation_test(documentsDir, metaDataPath, output0Dir, clearOutput);
     
     std::string outputPath = "/home/seabass/extra/IAM/documentsSegmented_small/score.txt";
-    scoreWordSegmentation(outputDir, outputPath);
+    // scoreWordSegmentation(outputDir, outputPath);
+
+    std::string wordsDir = "/home/seabass/extra/IAM/documentsSegmented_small";
+    std::string output1Dir = "/home/seabass/extra/IAM/charsSegmented_small";
+    charSegmentation_test(wordsDir, output1Dir, false);
 
     return 0;
 }

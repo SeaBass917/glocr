@@ -268,7 +268,7 @@ png::image<png::gray_pixel> segmentImageThreshold(png::image<png::gray_pixel> co
 #pragma omp parallel for
     for(unsigned y = 0; y < height; y++){
         std::vector<png::gray_pixel> rowSrc = imgSrc[y];
-        std::vector<png::gray_pixel> rowTgt = imgSeg[y];
+        std::vector<png::gray_pixel>& rowTgt = imgSeg[y];
         for(unsigned x = 0; x < width; x++){
             if(T <= rowSrc[x]) rowTgt[x] = 255;
             else rowTgt[x] = 0;
@@ -279,7 +279,6 @@ png::image<png::gray_pixel> segmentImageThreshold(png::image<png::gray_pixel> co
 }
 
 unsigned determineKittlerThreshold(png::image<png::gray_pixel> const &imgSrc){
-    std::cout << "\tWARNING TODO: Re-write determineKittlerThreshold() there are ege cases of failure." << std::endl;
 
     // Image dimensions
     unsigned height = imgSrc.get_height();
@@ -287,10 +286,10 @@ unsigned determineKittlerThreshold(png::image<png::gray_pixel> const &imgSrc){
     unsigned numPixels = height * width;
 
     // Determine the threshold for segmenting the image
-    // Using Kittler's Method
+    // Using Kittler's Method (iterative)
 
     // Generate grayscale histogram from image source
-    double hist[256] = {0};
+    double hist[256] = {0.0};
     for(unsigned y = 0; y < height; y++){
         for(unsigned x = 0; x < width; x++){
             hist[ imgSrc[y][x] ]++;
@@ -298,54 +297,79 @@ unsigned determineKittlerThreshold(png::image<png::gray_pixel> const &imgSrc){
     }
 
     // Normalize the histogram
+    // DURING THE LOOP: Compute total mu for later
+    double mu = 0.0;
     for(unsigned i = 0; i < 256; i++){
-        hist[i] /= numPixels;
+        double v = hist[i] / numPixels;
+        hist[i] = v;
+        mu += i * v;
     }
 
-    // Compute the error for each threshold
-    double errMin = std::numeric_limits<double>::max();
-    unsigned T = 0;
-    double errConst = 0.5+0.5*log(2.0*M_PI); // Const used in error calculations
-    for(unsigned t = 0; t < 256; t++){
-        double q1 = 0;
-        for(unsigned i = 0; i <= t; i++){
-            q1 += hist[i];
+    // Look for the first and last non-zero bins 
+    unsigned i_first = 0u;
+    unsigned i_last = 255u;
+    for(unsigned i = 0; i < 255; i++){
+        if(0 < hist[i]){
+            i_first = i;
+            break;
         }
-
-        double q2 = 1.0 - q1;
-
-        double m1 = 0;
-        for(unsigned i = 0; i <= t; i++){
-            m1 += i * hist[i] / q1;
+    }
+    for(unsigned i = 255; 0 < i; i--){
+        if(0 < hist[i]){
+            i_last = i;
+            break;
         }
+    }
 
-        double m2 = 0;
-        for(unsigned i = t+1; i < 256; i++){
-            m2 += i * hist[i] / q1;
-        }
+    // Initlialize our iterative variables 
+    double errMin = std::numeric_limits<double>::max(); // The argument to minimize
+    unsigned T = 0;                                     // Lowest error thrteshold
+    double q1 = hist[i_first];                          // ratio in the bimodal model 1st mode
+    double q2 = 1.0 - q1;                               // ratio in the bimodal model 2nd mode
+    double mu1 = i_first;                               // Mean of 1st mode
+    double mu2 = mu / q2;                               // Mean of 2nd mode
+    double var1 = 0.0;                                  // Variance of 1st mode
+    double var2 = 0.0;                                  // Variance of 2nd mode
+    for(unsigned i = i_first+1; i < i_last+1; i++){
+        double d = i - mu2;
+        var2 += d*d*hist[i] / q2;
+    }
 
-        double v1 = 0;
-        double diff;
-        for(unsigned i = 0; i <= t; i++){
-            diff = i - m1;
-            v1 += diff * diff * hist[i] / q1;
-        }
-
-        double v2 = 0;
-        for(unsigned i = t+1; i < 256; i++){
-            diff = i - m2;
-            v2 += diff * diff * hist[i] / q2;
-        }
-
-        double err = errConst - q1*log(q1) - q2*log(q2) + q1*log(v1)/2.0 + q2*log(v2)/2.0;
-
+    // Iteratively compute the error at each threshold t
+    double mu1prev;
+    double mu2prev;
+    double var1prev;
+    double var2prev;
+    double q1prev;
+    double q2prev;
+    for(unsigned t = i_first+1; t < i_last-1; t++){
+        
+        // Store the prev computations
+        mu1prev = mu1;
+        mu2prev = mu2;
+        var1prev = var1;
+        var2prev = var2;
+        q1prev = q1;
+        q2prev = q2;
+        
+        // Update
+        double p = hist[t];
+        q1 = q1prev + p;
+        q2 = 1 - q1;
+        mu1 = (q1prev*mu1prev + t*p)/q1;
+        mu2 = (mu - q1*mu1)/q2;
+        double d1 = mu1prev - mu1;
+        double d2 = mu2prev - mu2;
+        var1 = (q1prev*(var1prev + (d1)*(d1)) + p*(t - mu1)*(t - mu1))/q1;
+        var2 = (q2prev*(var2prev + (d2)*(d2)) - p*(t - mu2)*(t - mu2))/q2;
+        
+        // Compute error and update the minargs
+        double err = (q1*log(var1) + q2*log(var2)) / 2.0 - q1*log(q1) - q2*log(q2);
         if(err < errMin){
             errMin = err;
             T = t;
         }
     }
-
-    std::cout << "Threshold: " << T << std::endl;
 
     return T;
 }
@@ -1012,4 +1036,9 @@ png::image<png::gray_pixel> erodeImg(png::image<png::gray_pixel> const& imgDoc, 
     }
 
     return imgEroded;
+}
+
+png::image<png::gray_pixel> skeletonizeImg(png::image<png::gray_pixel> const& img){
+
+    return img;
 }

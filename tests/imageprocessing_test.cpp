@@ -59,6 +59,21 @@ void erosion_test(std::string testDir, std::string testDocumentPath){
     }
 }
 
+void kittler_test(std::string testDir, std::string testImgPath){
+    if(fs::exists(testImgPath)){
+        png::image<png::gray_pixel> img(testImgPath);
+        
+        unsigned t = determineKittlerThreshold(img);
+        png::image<png::gray_pixel> imgKittler = segmentImageThreshold(img, t);
+
+        std::string outputImgPath = testDir + getPathNoExtension(testImgPath)+"_kittlerThresh.png";
+        imgKittler.write(outputImgPath);
+    }
+    else{
+        std::cerr << "\tERROR! kittler_test() cannot find \""<<testImgPath<<"\" needed for test." << std::endl;
+    }
+}
+
 int main(int argc, char const *argv[]){
 
     // Create a directory for doing tests
@@ -67,19 +82,23 @@ int main(int argc, char const *argv[]){
 
     // Draw a smile
     std::string pathSmile = testDir+"smile.png";
-    drawASmile(pathSmile);
+    // drawASmile(pathSmile);
 
     std::string testDir0 = testDir+"edgeDetection_test/";
     if(!fs::exists(testDir0)) fs::create_directory(testDir0);
-    edgeDetection_test(testDir0, "document.png");
+    // edgeDetection_test(testDir0, "document.png");
 
     std::string testDir1 = testDir+"cleanIAMDocument_test/";
     if(!fs::exists(testDir1)) fs::create_directory(testDir1);
-    cleanIAMDocument_test(testDir1);
+    // cleanIAMDocument_test(testDir1);
 
     std::string testDir2 = testDir+"erosion_test/";
     if(!fs::exists(testDir2)) fs::create_directory(testDir2);
-    erosion_test(testDir2, "document_cleaned.png");
+    // erosion_test(testDir2, "document_cleaned.png");
+
+    std::string testDir3 = testDir+"kittler_test/";
+    if(!fs::exists(testDir3)) fs::create_directory(testDir3);
+    kittler_test(testDir3, "document.png");
 
     return 0;
 }
