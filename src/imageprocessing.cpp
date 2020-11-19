@@ -969,6 +969,10 @@ png::image<png::gray_pixel> cleanIAMDocument(png::image<png::gray_pixel> const &
 }
 
 /*
+ * Hit and Miss
+ */
+
+/*
  * Image Filtering
  */
 
@@ -1038,7 +1042,115 @@ png::image<png::gray_pixel> erodeImg(png::image<png::gray_pixel> const& imgDoc, 
     return imgEroded;
 }
 
-png::image<png::gray_pixel> skeletonizeImg(png::image<png::gray_pixel> const& img){
+png::image<png::gray_pixel> thinImg(png::image<png::gray_pixel> const& img){
 
-    return img;
+    unsigned const maxRuns = 1000;  // Safety cap for the thinning process
+
+    unsigned const height = img.get_height();
+    unsigned const width = img.get_width();
+
+    // Make a copy of the image that we will be editing and returning
+    png::image<png::gray_pixel> imgCopy(img);
+
+    // Subtract a hit&miss operation from the image on 8 rotations
+    // See: https://homepages.inf.ed.ac.uk/rbf/HIPR2/thin.htm
+    // Repeat this untill no changes are made
+    bool changes;
+    unsigned t = 0;
+    do {
+        changes = false;
+
+        // For each pixel, check neighbours
+#pragma omp parallel for
+        for(int y = 1; y < height-1; y++){
+            std::vector<png::gray_pixel> rowPrev = imgCopy[y-1];
+            std::vector<png::gray_pixel>& row = imgCopy[y];
+            std::vector<png::gray_pixel> rowNext = imgCopy[y+1];
+            for(int x = 1; x < width-1; x++){
+                if(0 == row[x]){
+                    png::gray_pixel A = rowPrev[x-1];
+                    png::gray_pixel B = rowPrev[x];
+                    png::gray_pixel C = rowPrev[x+1];
+                    png::gray_pixel D = row[x-1];
+                    // png::gray_pixel E = row[x];
+                    png::gray_pixel F = row[x+1];
+                    png::gray_pixel G = rowNext[x-1];
+                    png::gray_pixel H = rowNext[x];
+                    png::gray_pixel I = rowNext[x+1];
+
+                    // 0 degree
+                    if( 0 < A && 0 < B && 0 < C && 
+                        0 == G && 0 == H && 0 == I){
+                        row[x] = 255;
+                        changes = true;
+                        continue;
+                    }
+                    // 45 degree
+                    if(     0 < B && 
+                        0 < D && 0 == F &&
+                            0 == H){
+                        row[x] = 255;
+                        changes = true;
+                        continue;
+                    }
+                    // 90 degree
+                    if( 0 < A && 0 == C &&
+                        0 < D && 0 == F &&
+                        0 < G && 0 == I){
+                        row[x] = 255;
+                        changes = true;
+                        continue;
+                    }
+                    // 135 degree
+                    if(     0 == B &&
+                        0 < D && 0 == F &&
+                            0 < H){
+                        row[x] = 255;
+                        changes = true;
+                        continue;
+                    }
+                    // 180 degree
+                    if( 0 == A && 0 == B && 0 == C && 
+                        0 < G && 0 < H && 0 < I){
+                        row[x] = 255;
+                        changes = true;
+                        continue;
+                    }
+                    // 225 degree
+                    if(      0 == B && 
+                        0 == D && 0 < F &&
+                             0 < H){
+                        row[x] = 255;
+                        changes = true;
+                        continue;
+                    }
+                    // 270 degree
+                    if( 0 == A && 0 < C &&
+                        0 == D && 0 < F &&
+                        0 == G && 0 < I){
+                        row[x] = 255;
+                        changes = true;
+                        continue;
+                    }
+                    // 315 degree
+                    if(      0 < B &&
+                        0 == D && 0 < F &&
+                             0 == H){
+                        row[x] = 255;
+                        changes = true;
+                        continue;
+                    }
+                }
+            }
+        }
+
+        t++;
+    }while (changes && t < maxRuns);
+
+    if(t == maxRuns){
+        std::cerr << "\tERROR! Thinning process hit "<<maxRuns<<" itterations." << std::endl;
+        throw std::exception();
+    }
+
+    return imgCopy;
 }

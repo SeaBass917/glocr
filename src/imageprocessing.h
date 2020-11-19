@@ -151,7 +151,7 @@ png::image<png::gray_pixel> edgeMapImg(png::image<png::gray_pixel> const &img, g
 png::image<png::gray_pixel> erodeImg(png::image<png::gray_pixel> const& imgDoc, unsigned const kernelRadius=3);
 
 // Skeletonizes an image
-png::image<png::gray_pixel> skeletonizeImg(png::image<png::gray_pixel> const& img);
+png::image<png::gray_pixel> thinImg(png::image<png::gray_pixel> const& img);
 
 // Reduces salt and pepper noise in an image (the tiny dot artifacts from scanning)
 // png::image<png::gray_pixel> noiseReduxSPImg(png::image<png::gray_pixel> const& img);

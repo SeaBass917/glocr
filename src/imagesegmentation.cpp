@@ -65,10 +65,11 @@ png::image<png::gray_pixel> preProcessDocumentImage(png::image<png::gray_pixel> 
 
 png::image<png::gray_pixel> preProcessWordImage(png::image<png::gray_pixel> const& img){
     
-    unsigned t = determineKittlerThreshold(img);
+    png::image<png::gray_pixel>(img).write("../base.png");
+    unsigned t = 174;//determineKittlerThreshold(img);
     png::image<png::gray_pixel> imgThresh = segmentImageThreshold(img, t);
     imgThresh.write("../thresh.png");
-    png::image<png::gray_pixel> imgSkeleton = skeletonizeImg(imgThresh);
+    png::image<png::gray_pixel> imgSkeleton = thinImg(imgThresh);
     imgSkeleton.write("../skeleton.png");
     // png::image<png::gray_pixel> imgClean = noiseReduxSPImg(imgSkeleton);
     // imgClean.write("../clean.png");
