@@ -56,9 +56,9 @@ std::map<std::string, std::array<unsigned, 7>> loadIAMDocumentsMetadata(std::str
 png::image<png::gray_pixel> preProcessDocumentImage(png::image<png::gray_pixel> const& imgDoc){
     
     png::image<png::gray_pixel> imgEdges = edgeMapImg(imgDoc, SOBEL, 30);
-    // imgEdges.write("../edges.png");
+    imgEdges.write("../edges.png");
     png::image<png::gray_pixel> imgEroded = erodeImg(imgEdges, 3);
-    // imgEroded.write("../eroded.png");
+    imgEroded.write("../eroded.png");
     
     return imgEroded;
 }
@@ -273,6 +273,8 @@ std::vector<std::vector<png::image<png::gray_pixel>>> wordSegmentation(png::imag
 std::vector<png::image<png::gray_pixel>> charSegmentation(png::image<png::gray_pixel> const &imgword){
     // std::cout << "TODO: Check to see if you can measure and adjust skew in a word." << std::endl;
     
+    unsigned const minPSCDistance = 7u; // Minimum distance between two PSC boxes
+
     // Image dimensions
     unsigned const height = imgword.get_height();
     unsigned const width = imgword.get_width();
@@ -281,10 +283,90 @@ std::vector<png::image<png::gray_pixel>> charSegmentation(png::image<png::gray_p
     // Pre-Processing
     // ---------------
 
-    png::image<png::gray_pixel> imgDocPreProc = preProcessWordImage(imgword);
-    // crop(imgDocPreProc, 0, numColumnsForHist, 0, height-1).write("/home/seabass/extra/pprocimg.png");
+    png::image<png::gray_pixel> imgPreProc = preProcessWordImage(imgword);
 
-    return std::vector<png::image<png::gray_pixel>>();
+    // ---------------
+    // Segmentation
+    // ---------------
+
+    // Count Potential Segmentation Columns (boolean vertical proj hist)
+    // Mark down the transition points only
+    std::vector<unsigned> pscTransitions;
+    bool prevColInChar = true;
+    for(unsigned x = 0u; x < width; x++){
+        unsigned cnt = 0u;
+        bool colInChar = false;
+        for(unsigned y = 0; y < height; y++){
+            if (0 == imgPreProc[y][x]) {
+                cnt++;
+                if(1u < cnt){    // We hit the count; break
+                    colInChar = true;
+                    break;
+                }
+            }
+        }
+        
+        if(prevColInChar != colInChar) pscTransitions.push_back(x);
+
+        prevColInChar = colInChar;
+    }
+    if(prevColInChar != true) pscTransitions.push_back(width); // Treat the last column as the start of a new word
+        
+    // Check that the number of transition points makes sense
+    // Value should be even
+    unsigned numTransitions = pscTransitions.size();
+    unsigned numMidPoints = numTransitions / 2u - 1u;
+    if((numTransitions & 1) == 0){
+
+        // Get a list of the psc Bounds
+        std::vector<tuple2<unsigned>> pscBounds;
+        for(unsigned i=1; i < numTransitions; i+=2)
+            pscBounds.push_back({pscTransitions[i-1], pscTransitions[i]});
+
+        // Connect psc that are smaller than the min width apart
+        auto it = pscBounds.begin();
+        tuple2<unsigned> pscPrev = *it;
+        it++;
+        while(it != pscBounds.end()){
+            tuple2<unsigned> psc = *it;
+            unsigned x1 = pscPrev._1;
+            unsigned x2 = psc._0;
+
+            if(x2 - x1 < minPSCDistance){
+                *(it-1) = {pscPrev._0, psc._1};
+                it = pscBounds.erase(it);
+            }
+            else {
+                pscPrev = psc;
+                it++;
+            }
+        }
+
+        // Simply Cut down the center of each of these PCS
+        std::vector<png::image<png::gray_pixel>> charImgs(pscBounds.size() - 1);
+        it = pscBounds.begin();
+        pscPrev = *it;
+        it++;
+        unsigned i = 0;
+        while(it != pscBounds.end()){
+            tuple2<unsigned> &psc = *it;
+
+            unsigned x0 = pscPrev._0;
+            unsigned x1 = psc._1-1; // NOTE: We subtract a -1 since column bounds goes to "width"
+
+            charImgs[i] = crop(imgword, x0, x1, 0u, height-1);
+
+            pscPrev = psc;
+            it++;
+            i++;
+        }
+
+        return charImgs;
+    }
+    else{
+        std::cerr << "\tERROR! charSegmentation() Found an odd number of segments. Cannot confidently segment document." << std::endl;
+        throw std::exception();
+    }
 }
 
 /*

@@ -314,7 +314,8 @@ void charSegmentation_test(std::string documentsDir, std::string outputDir, bool
                     std::string wordname = getPathNoExtension(wordFilename);    // Name associated with the word (e.g. line_0-word_1)
                     std::string wordPath = wordFilePath.path().string();
                     std::string wordOutputDir = documentOutputDir + '/' + wordname + '/';
-                    if(toLower(getFileExtension(wordFilename)) == "png"){
+                    std::string ext = toLower(getFileExtension(wordFilename));
+                    if(ext == "png"){
 
                         //Load the word image
                         png::image<png::gray_pixel> img(wordPath);
@@ -328,6 +329,7 @@ void charSegmentation_test(std::string documentsDir, std::string outputDir, bool
                         for(png::image<png::gray_pixel>& charImg : charImgs){
                             std::string charOutputPath = wordOutputDir+"char_"+std::to_string(i_char)+".png";
                             charImg.write(charOutputPath);
+                            i_char++;
                         }
 
                         i_word++;

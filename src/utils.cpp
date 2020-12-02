@@ -53,21 +53,10 @@ std::string getFileExtension(std::string sPath){
  */
 
 std::string toLower(std::string s){
-    unsigned len = s.length();
-    char* cs = (char*)malloc(sizeof(char)*len);
-    if(cs){
-        for(unsigned i = 0; i < len; i++){
-            cs[i] = std::tolower(s[i]);
-        }
-
-        std::string sLower(cs);
-        free(cs);
-        return sLower;
-    }
-    else{
-        std::cerr << "ERROR! Failed to allocate memory for toLower()." << std::endl;
-        throw std::exception();
-    }
+    std::string sCpy(s);
+    for(char &c : s)
+        c = std::tolower(c);
+    return sCpy;
 }
 
 /*

@@ -101,22 +101,28 @@ png::image<png::gray_pixel> crop(png::image<png::gray_pixel> const &img, unsigne
         // Prepare a new image for the crop
         unsigned const widthNew = x1 - x0 + 1;
         unsigned const heightNew = y1 - y0 + 1;
-        png::image<png::gray_pixel> imgCropped(widthNew, heightNew);
+        if(0 < widthNew && 0 < heightNew){
+            png::image<png::gray_pixel> imgCropped(widthNew, heightNew);
 
-        // Loop through each image and move the data
-        for(unsigned y = y0, yy = 0; y <= y1; y++, yy++){
-            std::vector<png::gray_pixel> rowTgt = imgCropped[yy];
-            std::vector<png::gray_pixel> rowSrc = img[y];
-            for(unsigned x = x0, xx = 0; x <= x1; x++, xx++){
-                rowTgt[xx] = rowSrc[x];
+            // Loop through each image and move the data
+            for(unsigned y = y0, yy = 0; y <= y1; y++, yy++){
+                std::vector<png::gray_pixel> rowTgt = imgCropped[yy];
+                std::vector<png::gray_pixel> rowSrc = img[y];
+                for(unsigned x = x0, xx = 0; x <= x1; x++, xx++){
+                    rowTgt[xx] = rowSrc[x];
+                }
+                imgCropped[yy] = rowTgt;
             }
-            imgCropped[yy] = rowTgt;
+            
+            return imgCropped;
         }
-        
-        return imgCropped;
+        else{
+            std::cerr << "\tERROR! Attempted to crop 0 width/height image: x0={"<<x0<<"} x1={"<<x1<<"} y0={"<<y0<<"} y1={"<<y1<<"}." << std::endl;
+            throw std::exception();
+        }
     }
     else{
-        std::cerr << "\tERROR! Cannot crop image at x0={"<<x0<<"} x1={"<<x1<<"} y0={"<<y0<<"} y1={"<<y1<<"}." << std::endl;
+        std::cerr << "\tERROR! Cannot crop image with dimmensions: (width="<<width<<", height="<<height<<") at x0={"<<x0<<"} x1={"<<x1<<"} y0={"<<y0<<"} y1={"<<y1<<"}." << std::endl;
         throw std::exception();
     }
 }
@@ -555,7 +561,7 @@ std::vector<tuple2<int>> getMidPointBounds(std::vector<unsigned> hist, unsigned 
         return midPointBounds;
     }
     else{
-        std::cerr << "\tERROR! lineSegmentation() Found an odd number of segments. Cannot confidently segment document." << std::endl;
+        std::cerr << "\tERROR! getMidPointBounds() Found an odd number of segments. Cannot confidently segment document." << std::endl;
         throw std::exception();
     }
 }
