@@ -171,7 +171,7 @@ void scoreWordSegmentation(std::string segmentedWordsDir, std::string outputPath
     }
 }
 
-void wordSegmentation_test(std::string documentsDir, std::string metaDataPath, std::string outputDir, bool clearOutput){
+void wordSegmentation_testfull(std::string documentsDir, std::string metaDataPath, std::string outputDir, bool clearOutput){
 
     // Create or clear our working directory
     if(!fs::exists(outputDir)) fs::create_directory(outputDir);
@@ -219,14 +219,14 @@ void wordSegmentation_test(std::string documentsDir, std::string metaDataPath, s
             // Segment this document
             png::image<png::gray_pixel> imgDoc(documentPath);
             try{
-                std::vector<std::vector<png::image<png::gray_pixel>>> lineImgs = wordSegmentation(imgDoc);
+                std::vector<std::vector<png::image<png::gray_pixel>>> wordImgs = wordSegmentation(imgDoc);
 
                 // Save the segmented images in their own directory
                 // include a performance report in that directory
                 unsigned numWordsSegmented = 0;
                 unsigned numLinesSegmented = 0;
                 unsigned i = 0;
-                for(auto& imgWords : lineImgs){
+                for(auto& imgWords : wordImgs){
                     unsigned j = 0;
                     for(auto& imgWord : imgWords){
                         imgWord.write(segmentedOutputDir+"line_"+std::to_string(i)+"-word_"+std::to_string(j)+".png");
@@ -263,99 +263,112 @@ void wordSegmentation_test(std::string documentsDir, std::string metaDataPath, s
     }
 }
 
-// Loop through each document
-// Make a folder for the document
-// Segment the characters into individual word sub directories
-// outputdir/doc0/w0/c0.png
-// outputdir/doc0/w0/c1.png
-// outputdir/doc0/w1/c0.png
-// ...
-// outputdir/doc1/w0/c0.png
-// ...
-void charSegmentation_test(std::string documentsDir, std::string outputDir, bool clearOutput){
-    
-    // Create or clear our working directory
-    if(!fs::exists(outputDir)) fs::create_directory(outputDir);
-    else if(clearOutput){
-        fs::remove_all(outputDir);
-        fs::create_directory(outputDir);
-    }
+void wordSegmentation_testsimple(){
+    std::string documentPath = "document_cleaned.png";
+    std::string outputDir = "Phase1_SimpleTest/";
+    std::string perfReportPath = outputDir+"score.txt";
+    if(fs::exists(documentPath)){
 
-    // Count the number of documents so we can inform user
-    unsigned numDocs = 0;
-    for(auto& docDir : fs::directory_iterator(documentsDir))
-        if(fs::is_directory(docDir)) numDocs++;
+        // Create output directory
+        if(!fs::exists(outputDir)) fs::create_directory(outputDir);
 
-    // Loop through each document
-    unsigned iDoc = 1;
-    for(auto& docDirPath : fs::directory_iterator(documentsDir)){
-        if(fs::is_directory(docDirPath)){
-            std::string docname = docDirPath.path().filename();
-            std::string documentOutputDir = outputDir + "/" + docname + "/";
-            std::cout << "Segmenting characters in document: \""<<docname<<"\". ("<<iDoc<<"/"<<numDocs<<")" << std::endl;
-            iDoc++;
+        // Load and segment the test word
+        png::image<png::gray_pixel> imgDoc(documentPath);
+        try{
+            std::cout << "Segmenting words in test document..." << std::endl;
+            std::vector<std::vector<png::image<png::gray_pixel>>> wordImgs = wordSegmentation(imgDoc);
 
-            // Check if the output has already been computed (if it has, then skip this document)
-            bool isEmpty = true;
-            if((fs::exists(documentOutputDir))) {
-                unsigned cnt = 0;
-                for(auto& f : fs::recursive_directory_iterator(documentOutputDir))
-                    if(fs::is_regular_file(f))
-                        cnt++;
-                isEmpty = 0 == cnt;
-            }
-            else fs::create_directories(documentOutputDir); // NOTE: Make the directory if its not there
-            if(isEmpty){
+            // Save the segmented images in their own directory
+            // include a performance report in that directory
+            std::cout << "Saving word images locally." << std::endl;
+            unsigned numWordsSegmented = 0;
+            unsigned numLinesSegmented = 0;
+            unsigned i = 0;
+            for(auto& imgWords : wordImgs){
+                unsigned j = 0;
+                for(auto& imgWord : imgWords){
+                    imgWord.write(outputDir+"line_"+std::to_string(i)+"-word_"+std::to_string(j)+".png");
 
-                // For each segmented word in the document
-                unsigned i_word = 0;
-                for(auto& wordFilePath : fs::directory_iterator(docDirPath)){
-                    std::string wordFilename = wordFilePath.path().filename();
-                    std::string wordname = getPathNoExtension(wordFilename);    // Name associated with the word (e.g. line_0-word_1)
-                    std::string wordPath = wordFilePath.path().string();
-                    std::string wordOutputDir = documentOutputDir + '/' + wordname + '/';
-                    std::string ext = toLower(getFileExtension(wordFilename));
-                    if(ext == "png"){
-
-                        //Load the word image
-                        png::image<png::gray_pixel> img(wordPath);
-
-                        // Segment the word
-                        std::vector<png::image<png::gray_pixel>> charImgs = charSegmentation(img);
-
-                        // Store the resulting characters in our output directory
-                        unsigned i_char = 0;
-                        fs::create_directory(wordOutputDir);
-                        for(png::image<png::gray_pixel>& charImg : charImgs){
-                            std::string charOutputPath = wordOutputDir+"char_"+std::to_string(i_char)+".png";
-                            charImg.write(charOutputPath);
-                            i_char++;
-                        }
-
-                        i_word++;
-                    }
+                    numWordsSegmented++;
+                    j++;
                 }
+                numLinesSegmented++;
+                i++;
+            }
+
+            // Save performance report
+            std::ofstream fp(perfReportPath);
+            if(fp){
+                // a01-011u 000 2 all 10 10 68 68
+                perfReport rep(0, ALL, 10, 68, 10, 68, numLinesSegmented, numWordsSegmented);
+                std::string perfString = rep.toString();
+                fp << perfString;
+                fp.close();
+
+                std::cout << "Performance:" << std::endl;
+                std::cout << "\tLine Accuracy: " << 1.0f - (float)abs(rep.lineDiff) / (float)rep.numLines << std::endl;
+                std::cout << "\tWord Accuracy: " << 1.0f - (float)abs(rep.wordDiff) / (float)rep.numWords << std::endl;
+            }
+            else{
+                std::cerr << "\tWARNING! Cannot access \""<<perfReportPath<<"\". Could not store performance report." << std::endl; 
             }
         }
+        catch(const std::exception& e)
+        {
+            std::cerr << "Caught an exception while segmenting words." << std::endl;
+            std::cerr << e.what() << std::endl;
+        }
     }
+    else{
+        std::cerr << "\tERROR! Cannot find document_cleaned.png file that came with the project." << std::endl;
+    }
+}
 
+void printHelp(){
+    std::cerr << "\tERROR! Bad call to phase 1 tests." << std::endl;
+    std::cerr << "Usage:" << std::endl << std::endl;
+    std::cerr << "Simple test:" << std::endl;
+    std::cerr << "\t./phase1" << std::endl;
+    std::cerr << "Full Test:" << std::endl;
+    std::cerr << "\t./phase1 CLEANED_IAMDOCS_DIR IAMDOCS_METADATA_PATH OUTPUT_DIR [--clearOutput]" << std::endl;
+    std::cerr << "\t\t--clearOutput : On True: Will wipe the output directory instead of continuing from last run point" << std::endl;
 }
 
 int main(int argc, char const *argv[]){
 
-    // Test word segmentation in its own sub directory
-    std::string documentsDir = "/home/seabass/extra/IAM/documentsCleaned_small";
-    std::string metaDataPath = "/home/seabass/extra/IAM/metadata/documents.txt";
-    std::string output0Dir = "/home/seabass/extra/IAM/documentsSegmented_small";
-    bool clearOutput = false;   // On True: Will wipe the output directory instead of continuing from last run point
-    // wordSegmentation_test(documentsDir, metaDataPath, output0Dir, clearOutput);
-    
-    std::string outputPath = "/home/seabass/extra/IAM/documentsSegmented_small/score.txt";
-    // scoreWordSegmentation(outputDir, outputPath);
+    // Full test
+    if(4 == argc || 5 == argc){
+        // On True: Will wipe the output directory instead of continuing from last run point
+        bool clearOutput = (5 == argc)? "--clearOutput" == argv[4] : false;
+        
+        std::string documentsDir = argv[1];
+        std::string metaDataPath = argv[2];
+        std::string outputDir = argv[3];
+        std::string outputPath = outputDir+"/full-score.txt";
 
-    std::string wordsDir = "/home/seabass/extra/IAM/documentsSegmented_small";
-    std::string output1Dir = "/home/seabass/extra/IAM/charsSegmented_small";
-    charSegmentation_test(wordsDir, output1Dir, false);
+        if(fs::exists(documentsDir)){
+            if(fs::exists(metaDataPath)){
+
+                wordSegmentation_testfull(documentsDir, metaDataPath, outputDir, clearOutput);
+                scoreWordSegmentation(outputDir, outputPath);
+
+            }
+            else{
+                std::cerr << "\tERROR! Cannnot access IAMDOCS_METADATA_PATH \""<<metaDataPath<<"\"." << std::endl;
+            }
+        }
+        else{
+            std::cerr << "\tERROR! Cannnot access CLEANED_IAMDOCS_DIR \""<<documentsDir<<"\"." << std::endl;
+        }
+    }
+    // Simple Test, using local file
+    else if(argc == 1){
+        wordSegmentation_testsimple();
+    }
+    else{
+        // BAD ARGS
+        printHelp();
+    }
 
     return 0;
 }

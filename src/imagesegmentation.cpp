@@ -56,21 +56,21 @@ std::map<std::string, std::array<unsigned, 7>> loadIAMDocumentsMetadata(std::str
 png::image<png::gray_pixel> preProcessDocumentImage(png::image<png::gray_pixel> const& imgDoc){
     
     png::image<png::gray_pixel> imgEdges = edgeMapImg(imgDoc, SOBEL, 30);
-    imgEdges.write("../edges.png");
+    // imgEdges.write("../edges.png");
     png::image<png::gray_pixel> imgEroded = erodeImg(imgEdges, 3);
-    imgEroded.write("../eroded.png");
+    // imgEroded.write("../eroded.png");
     
     return imgEroded;
 }
 
 png::image<png::gray_pixel> preProcessWordImage(png::image<png::gray_pixel> const& img){
     
-    png::image<png::gray_pixel>(img).write("../base.png");
+    // png::image<png::gray_pixel>(img).write("../base.png");
     unsigned t = 174;//determineKittlerThreshold(img);
     png::image<png::gray_pixel> imgThresh = segmentImageThreshold(img, t);
-    imgThresh.write("../thresh.png");
+    // imgThresh.write("../thresh.png");
     png::image<png::gray_pixel> imgSkeleton = thinImg(imgThresh);
-    imgSkeleton.write("../skeleton.png");
+    // imgSkeleton.write("../skeleton.png");
     // png::image<png::gray_pixel> imgClean = noiseReduxSPImg(imgSkeleton);
     // imgClean.write("../clean.png");
     

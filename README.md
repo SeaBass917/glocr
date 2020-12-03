@@ -18,6 +18,21 @@ Character recognition is often done using pretrained and heavy deep neural nets.
  - [libpng](http://www.libpng.org/pub/png/libpng.html)
  - [png++](https://www.nongnu.org/pngpp/)
 
+## Aquiring the IAM Handwritten Dataset
+ - Visit [https://fki.tic.heia-fr.ch/databases/iam-handwriting-database](https://fki.tic.heia-fr.ch/databases/iam-handwriting-database).
+ - Data is available here, but they will ask for name/institution/etc.
+ - Just follow the instructions on the site.
+
+## Testing Phase 1
+ - `mkdir build`
+ - `cd build`
+ - `make phase1 ../`
+ - `./phase` For Simple test using the provided document
+ - `./phase1 CLEANED_IAMDOCS_DIR IAMDOCS_METADATA_PATH OUTPUT_DIR [--clearOutput]` For Full test using a local copy of the IAM dataset
+ - `--clearOutput` If set will clear the output directory before running (otherwise program will continue from where it left off).
+
+## Testing Phase 2
+
 ## Simple Example Setup
  - In linux env
  - install packages in your env
