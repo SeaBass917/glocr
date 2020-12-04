@@ -182,8 +182,7 @@ void wordSegmentation_testfull(std::string documentsDir, std::string metaDataPat
 
     // Count the number of documents so we can inform user
     unsigned numDocs = 0;
-    for(auto& docFile : fs::directory_iterator(documentsDir))
-        numDocs++;
+    for([[maybe_unused]] auto& docFile : fs::directory_iterator(documentsDir)) numDocs++;
 
     // Load the metadata on the documents for validation of output
     std::map<std::string, std::array<unsigned, 7>> metaData = loadIAMDocumentsMetadata(metaDataPath);
@@ -264,7 +263,7 @@ void wordSegmentation_testfull(std::string documentsDir, std::string metaDataPat
 }
 
 void wordSegmentation_testsimple(){
-    std::string documentPath = "document_cleaned.png";
+    std::string documentPath = "data/document_cleaned.png";
     std::string outputDir = "Phase1_SimpleTest/";
     std::string perfReportPath = outputDir+"score.txt";
     if(fs::exists(documentPath)){
@@ -339,7 +338,7 @@ int main(int argc, char const *argv[]){
     // Full test
     if(4 == argc || 5 == argc){
         // On True: Will wipe the output directory instead of continuing from last run point
-        bool clearOutput = (5 == argc)? "--clearOutput" == argv[4] : false;
+        bool clearOutput = (5 == argc)? std::string("--clearOutput").compare(argv[4]) : false;
         
         std::string documentsDir = argv[1];
         std::string metaDataPath = argv[2];

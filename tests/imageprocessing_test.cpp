@@ -9,9 +9,9 @@
 void edgeDetection_test(std::string testDir, std::string testImg){
 
     // Address for test image edgemaps
-    std::string testPathNoExt = testDir + getPathNoExtension(testImg);
-    std::string pathEdgeSobel = testPathNoExt+"_edge-sobel.png";
-    std::string pathEdgeMedian = testPathNoExt+"_edge-median.png";
+    std::string filename = fs::path(testImg).filename();
+    std::string pathEdgeSobel = testDir+filename+"_edge-sobel.png";
+    std::string pathEdgeMedian = testDir+filename+"_edge-median.png";
 
     // Timers
     std::chrono::_V2::system_clock::time_point start, stop;
@@ -73,8 +73,6 @@ void erosion_test(std::string testDir, std::string testDocumentPath){
         std::chrono::_V2::system_clock::time_point start, stop;
         std::chrono::microseconds duration;
 
-        std::string testDocumentPathNoExt = testDir + getPathNoExtension(testDocumentPath);
-
         png::image<png::gray_pixel> imgDoc(testDocumentPath);
         
         // Edge detection step
@@ -93,8 +91,12 @@ void erosion_test(std::string testDir, std::string testDocumentPath){
         duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
         std::cout << "\tTime Elapsed: " << duration.count() / 1000.0f << "ms." << std::endl;
 
-        imgEdge.write(testDocumentPathNoExt+"_edge.png");
-        imgEroded.write(testDocumentPathNoExt+"_eroded.png");
+
+        // Output the results for user to see
+        std::string outputPathPrefix = testDir + fs::path(testDocumentPath).filename().string();
+
+        imgEdge.write(outputPathPrefix+"_edge.png");
+        imgEroded.write(outputPathPrefix+"_eroded.png");
     }
     else{
         std::cerr << "\tERROR! preProcessing_test() cannot find \""<<testDocumentPath<<"\" needed for test." << std::endl;
@@ -127,7 +129,7 @@ void kittler_test(std::string testDir, std::string testImgPath){
         duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
         std::cout << "\tTime Elapsed: " << duration.count() / 1000.0f << "ms." << std::endl;
 
-        std::string outputImgPath = testDir + getPathNoExtension(testImgPath)+"_kittlerThresh.png";
+        std::string outputImgPath = testDir + fs::path(testImgPath).filename().string()+"_kittlerThresh.png";
         imgKittler.write(outputImgPath);
     }
     else{
@@ -138,8 +140,13 @@ void kittler_test(std::string testDir, std::string testImgPath){
 int main(int argc, char const *argv[]){
 
     // Create a directory for doing tests
-    std::string testDir = "imageprocessing_test/";
+    std::string testDir = "imageprocessing_out/";
     if(!fs::exists(testDir)) fs::create_directory(testDir);
+
+    // Paths to various test files
+    std::string docPath = "data/document.png";
+    std::string docCleanedPath = "data/document_cleaned.png";
+    std::string testImg = "../data/IAM/documents/a02-000.png";
 
     // Draw a smile
     std::string pathSmile = testDir+"smile.png";
@@ -148,20 +155,19 @@ int main(int argc, char const *argv[]){
 
     std::string testDir0 = testDir+"edgeDetection_test/";
     if(!fs::exists(testDir0)) fs::create_directory(testDir0);
-    edgeDetection_test(testDir0, "document.png");
+    edgeDetection_test(testDir0, docCleanedPath);
 
     std::string testDir1 = testDir+"cleanIAMDocument_test/";
-    std::string testImg1 = "../data/IAM/documents/a02-000.png";
     if(!fs::exists(testDir1)) fs::create_directory(testDir1);
-    cleanIAMDocument_test(testDir1, testImg1);
+    cleanIAMDocument_test(testDir1, docPath);
 
     std::string testDir2 = testDir+"erosion_test/";
     if(!fs::exists(testDir2)) fs::create_directory(testDir2);
-    erosion_test(testDir2, "document_cleaned.png");
+    erosion_test(testDir2, docCleanedPath);
 
     std::string testDir3 = testDir+"kittler_test/";
     if(!fs::exists(testDir3)) fs::create_directory(testDir3);
-    kittler_test(testDir3, "document.png");
+    kittler_test(testDir3, docCleanedPath);
 
     return 0;
 }

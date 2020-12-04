@@ -3,7 +3,7 @@
 
 #include <iostream>
 
-void cleanIAMDocuments(char const* documentsDirectory, char const* documentsCleanedDirectory){
+void cleanIAMDocuments(std::string documentsDirectory, std::string documentsCleanedDirectory){
 
     // Check that the data documents are on file, and
     // make an ouput directory if we need it
@@ -12,8 +12,7 @@ void cleanIAMDocuments(char const* documentsDirectory, char const* documentsClea
 
         // Trackers for communicating with user
         unsigned numFiles = 0;
-        for(const auto& documentFile : fs::directory_iterator(documentsDirectory))
-            numFiles++;
+        for([[maybe_unused]]const auto& documentFile : fs::directory_iterator(documentsDirectory)) numFiles++;
         
         // Loop through each document in the directory, 
         // clean the document, 
@@ -23,7 +22,7 @@ void cleanIAMDocuments(char const* documentsDirectory, char const* documentsClea
             std::string documentPath = documentFile.path();
             std::string ext = documentFile.path().extension();
             std::string filename = documentFile.path().filename();
-            std::string pathOut = documentsCleanedDirectory+filename;
+            std::string pathOut = documentsCleanedDirectory+'/'+filename;
 
             // Skip files alread processed and non-png files
             if(!fs::exists(pathOut) && ext == ".png"){
@@ -53,12 +52,25 @@ void cleanIAMDocuments(char const* documentsDirectory, char const* documentsClea
     }
 }
 
+void printHelp(){
+    std::cerr << "\tERROR! Bad call." << std::endl;
+    std::cerr << "Usage:" << std::endl;
+    std::cerr << "\t./cleanIAMDocs_tool DOCS_DIR OUTPUT_DIR" << std::endl;
+}
+
 int main(int argc, char const *argv[]){
 
-    char const* documentsDirectory = "data/IAM/documents/";
-    char const* documentsCleanedDirectory = "data/IAM/documentsCleaned/";
+    if(3 == argc){
 
-    cleanIAMDocuments(documentsDirectory, documentsCleanedDirectory);
+        std::string documentsDirectory = argv[1];
+        std::string documentsCleanedDirectory = argv[2];
+
+        cleanIAMDocuments(documentsDirectory, documentsCleanedDirectory);
+    }
+    else{
+        // BAD ARGS
+        printHelp();
+    }
 
     return 0;
 }

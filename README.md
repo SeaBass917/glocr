@@ -17,29 +17,75 @@ Character recognition is often done using pretrained and heavy deep neural nets.
  - [zlib](https://zlib.net/)
  - [libpng](http://www.libpng.org/pub/png/libpng.html)
  - [png++](https://www.nongnu.org/pngpp/)
+ - [OpenMP](https://www.openmp.org/) (Optional, codebase is very unoptimized)
 
 ## Aquiring the IAM Handwritten Dataset
  - Visit [https://fki.tic.heia-fr.ch/databases/iam-handwriting-database](https://fki.tic.heia-fr.ch/databases/iam-handwriting-database).
  - Data is available here, but they will ask for name/institution/etc.
  - Just follow the instructions on the site.
+ - This tool uses a cleaned version of these documents (see cleanIAMDocs tool for getting this data)
 
-## Testing Phase 1
+## Building (CMake)
+Warning current CMake implementation has issues with OpenMP
+Recommending vanilla build
  - `mkdir build`
  - `cd build`
- - `make phase1 ../`
- - `./phase` For Simple test using the provided document
- - `./phase1 CLEANED_IAMDOCS_DIR IAMDOCS_METADATA_PATH OUTPUT_DIR [--clearOutput]` For Full test using a local copy of the IAM dataset
+ - `cmake ../`
+ - `make`
+
+## Building (Vanilla Linux)
+ - Phase1_tests
+   ```
+   g++ -std=c++2a \
+   -g tests/phase1_test.cpp src/imagesegmentation.cpp src/imageprocessing.cpp src/utils.cpp \
+   -I ./include \
+   -L ./lib -lz -lpng -fopenmp \
+   -o phase1_tests
+   ```
+ - Phase2_tests
+   ```
+   g++ -std=c++2a \
+   -g tests/phase2_test.cpp src/imagesegmentation.cpp src/imageprocessing.cpp src/utils.cpp \
+   -I ./include \
+   -L ./lib -lz -lpng -fopenmp \
+   -o phase2_tests
+   ```
+ - ImageProcessing_tests
+   ```
+   g++ -std=c++2a \
+   -g tests/imageprocessing_test.cpp src/imageprocessing.cpp src/utils.cpp \
+   -I ./include \
+   -L ./lib -lz -lpng -fopenmp \
+   -o imageprocessing_tests
+   ```
+ - Utils_tests
+   ```
+   g++ -std=c++2a \
+   -g tests/utils_test.cpp src/utils.cpp \
+   -o utils_tests
+   ```
+ - CleanIAMDocs_tool
+   ```
+   g++ -std=c++2a \
+   -g src/cleanIAMDocs.cpp src/imageprocessing.cpp src/utils.cpp \
+   -o cleanIAMDocs_tool
+   ```
+
+## Usage
+
+### Clean IAM Docs Tool
+ - `./cleanIAMDocs_tool` Tool for cleaning the IAM docs
+
+### Testing Phase 1
+ - `./phase1_tests` For Simple test using the provided document
+ - `./phase1_tests CLEANED_IAMDOCS_DIR IAMDOCS_METADATA_PATH OUTPUT_DIR [--clearOutput]` For Full test using a local copy of cleaned IAM dataset
  - `--clearOutput` If set will clear the output directory before running (otherwise program will continue from where it left off).
 
-## Testing Phase 2
+### Testing Phase 2
+ - `./phase2_tests` For Simple test using the provided document
+ - `./phase2_tests SEGMENTEDDOCS_DIR OUTPUT_DIR [--clearOutput]` For Full test using a local copy of Phase1's Full output
+ - `--clearOutput` If set will clear the output directory before running (otherwise program will continue from where it left off).
 
-## Simple Example Setup
- - In linux env
- - install packages in your env
-    * zlib (sudo apt-get install zlib1g-dev)
-    * libpng (sudo apt-get install libpng-dev)
- - Grab requirements (zlib, libpng, png++)
- - build them (NOTE: png++ is header only library, and libpng needs zlib)
- - headers in the INCLUDE_DIR, .a, .so in the LIB_DIR
- - g++ -g src/main.cpp src/image.cpp -I ${INCLUDE_DIR} -L ${LIB_DIR} -lz -lpng -fopenmp -o glocr
- - ./glocr
+### Testing Misc/Tools
+ - `./imageprocessing_tests` Unit tests for Image Processing tools
+ - `./utils_tests` Unit tests for Utils

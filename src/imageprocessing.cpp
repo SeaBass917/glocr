@@ -843,7 +843,7 @@ tuple4<unsigned> findIAMTextBounds(png::image<png::gray_pixel> const &img){
     // Find the max 3 peaks (these will be the segments)
     // Stored as (value, index)
     tuple2<int> yPeakList[3] = {{-INT32_MAX, -INT32_MAX}, {-INT32_MAX, -INT32_MAX}, {-INT32_MAX, -INT32_MAX}};
-    for(int r = 0; r < height; r++){
+    for(int r = 0; r < height-segmentRadius; r++){
         int v = (int)histHorizontal[r];
 
         // Check that we arent next to a row we already marked
@@ -925,7 +925,7 @@ tuple4<unsigned> findIAMTextBounds(png::image<png::gray_pixel> const &img){
 
     // Determine the vertical bounds using the same out-in method above
     int x0 = 0;
-    int x1 = width;
+    int x1 = width-1;
     std::vector<unsigned> histVertical = verticalProjectionHistogram(img, histThreshold);
     for(int c = x0; c < x1; c++){
         unsigned v = histVertical[c];
@@ -941,8 +941,8 @@ tuple4<unsigned> findIAMTextBounds(png::image<png::gray_pixel> const &img){
         unsigned v = histVertical[c];
         if(histLowerThreshold < v){
             int xx1 = c + cropPaddingWidth;
-            if(xx1 < x1){
-                x1 = xx1;
+            if(xx1 <= x1){
+                x1 = xx1-1;
             }
             break;
         }

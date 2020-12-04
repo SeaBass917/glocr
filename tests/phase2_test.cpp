@@ -80,7 +80,7 @@ void charSegmentation_testfull(std::string documentsDir, std::string outputDir, 
 }
 
 void charSegmentation_testsimple(){
-    std::string wordPath = "word.png";
+    std::string wordPath = "data/word.png";
     std::string outputDir = "Phase2_SimpleTest/";
     std::string perfReportPath = outputDir+"score.txt";
     if(fs::exists(wordPath)){
@@ -126,13 +126,13 @@ int main(int argc, char const *argv[]){
     // Full test
     if(3 == argc || 4 == argc){
         // On True: Will wipe the output directory instead of continuing from last run point
-        bool clearOutput = (4 == argc)? "--clearOutput" == argv[3] : false;
+        bool clearOutput = (4 == argc)? std::string("--clearOutput").compare(argv[3]) : false;
         
         std::string wordsDir = argv[1];
         std::string outputDir = argv[2];
 
         if(fs::exists(wordsDir)){
-            charSegmentation_testfull(wordsDir, outputDir, false);
+            charSegmentation_testfull(wordsDir, outputDir, clearOutput);
         }
         else{
             std::cerr << "\tERROR! Cannnot access SEGMENTEDDOCS_DIR \""<<wordsDir<<"\"." << std::endl;

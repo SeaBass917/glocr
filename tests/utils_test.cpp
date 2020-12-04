@@ -140,7 +140,7 @@ void median_test(){
 
     std::cout << "Testing median() ..." << std::endl;
     
-    unsigned testCasesTotal = 0;
+    unsigned testCasesTotal = 12;
     unsigned testCasesPassed = 6;
 
     char test0[] = "";
